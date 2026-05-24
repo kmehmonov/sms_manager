@@ -21,19 +21,20 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Gradle wrapper jar ni to'g'rilash
+      - name: Gradle distributivini yuklab, to'g'ri wrapper yaratish
         run: |
-          # Haqiqiy gradle-wrapper.jar ni Gradle distributividan olamiz
-          GRADLE_VERSION="8.7"
-          cd /tmp
-          wget -q "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
-          unzip -q "gradle-${GRADLE_VERSION}-bin.zip"
-          cp "gradle-${GRADLE_VERSION}/lib/gradle-wrapper-"*.jar \
-             "$GITHUB_WORKSPACE/gradle/wrapper/gradle-wrapper.jar" 2>/dev/null || \
-          find "gradle-${GRADLE_VERSION}" -name "*.jar" | head -1 | \
-             xargs -I{} cp {} "$GITHUB_WORKSPACE/gradle/wrapper/gradle-wrapper.jar"
-          echo "Jar hajmi: $(du -sh $GITHUB_WORKSPACE/gradle/wrapper/gradle-wrapper.jar)"
-          chmod +x "$GITHUB_WORKSPACE/gradlew"
+          # Gradle 8.7 ni yuklab olamiz
+          wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp/gradle-dist
+          GRADLE_BIN="/tmp/gradle-dist/gradle-8.7/bin/gradle"
+          chmod +x "$GRADLE_BIN"
+
+          # Haqiqiy gradle-wrapper.jar bilan to'g'ri wrapper yaratamiz
+          "$GRADLE_BIN" wrapper --gradle-version 8.7 --distribution-type bin
+          chmod +x gradlew
+
+          echo "✓ Wrapper yaratildi:"
+          ls -lh gradle/wrapper/gradle-wrapper.jar
 
       - name: Gradle cache
         uses: actions/cache@v4
