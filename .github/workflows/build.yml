@@ -1,6 +1,5 @@
 name: Android CI — APK Build
 
-# GitHub'ga push yoki pull request bo'lganda avtomatik build
 on:
   push:
     branches: [ "main", "master" ]
@@ -13,42 +12,42 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Kodni yuklab olish
       - name: Kodni yuklab olish
         uses: actions/checkout@v4
 
-      # 2. Java 17 o'rnatish (Android build uchun kerak)
       - name: Java 17 o'rnatish
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 3. Haqiqiy gradle-wrapper.jar ni yuklab olish
-      # (Stub jar o'rniga haqiqiy Gradle wrapper kerak)
-      - name: Gradle wrapper jar ni yuklab olish
+      - name: Gradle wrapper jar ni to'g'rilash
         run: |
-          mkdir -p gradle/wrapper
-          curl -fsSL "https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar" \
-            -o gradle/wrapper/gradle-wrapper.jar 2>/dev/null || \
-          wget -q "https://services.gradle.org/distributions/gradle-8.7-bin.zip" -O /tmp/gradle.zip && \
-          cd /tmp && unzip -q gradle.zip && \
-          cp gradle-8.7/lib/gradle-wrapper*.jar $GITHUB_WORKSPACE/gradle/wrapper/gradle-wrapper.jar || \
-          echo "Warning: Could not download wrapper jar"
-          chmod +x gradlew
+          # Haqiqiy gradle-wrapper.jar ni Gradle distributividan olamiz
+          GRADLE_VERSION="8.7"
+          cd /tmp
+          wget -q "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+          unzip -q "gradle-${GRADLE_VERSION}-bin.zip"
+          cp "gradle-${GRADLE_VERSION}/lib/gradle-wrapper-"*.jar \
+             "$GITHUB_WORKSPACE/gradle/wrapper/gradle-wrapper.jar" 2>/dev/null || \
+          find "gradle-${GRADLE_VERSION}" -name "*.jar" | head -1 | \
+             xargs -I{} cp {} "$GITHUB_WORKSPACE/gradle/wrapper/gradle-wrapper.jar"
+          echo "Jar hajmi: $(du -sh $GITHUB_WORKSPACE/gradle/wrapper/gradle-wrapper.jar)"
+          chmod +x "$GITHUB_WORKSPACE/gradlew"
 
-      # 4. Gradle Setup Action — eng ishonchli usul
-      - name: Gradle'ni sozlash
-        uses: gradle/actions/setup-gradle@v3
+      - name: Gradle cache
+        uses: actions/cache@v4
         with:
-          gradle-version: "8.7"
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
-      # 5. Debug APK build qilish
       - name: Debug APK build
         run: ./gradlew assembleDebug --stacktrace --no-daemon
 
-      # 6. APK faylini artifact sifatida saqlash
-      # Build tugagandan so'ng "Actions" bo'limidan yuklab olsa bo'ladi
       - name: APK ni saqlash
         uses: actions/upload-artifact@v4
         with:
@@ -56,13 +55,13 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      # 7. Build muvaffaqiyatli tugaganini tekshirish
-      - name: APK mavjudligini tekshirish
+      - name: Natija
         run: |
-          if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          if [ -f "$APK" ]; then
             echo "✅ APK muvaffaqiyatli yaratildi!"
-            ls -lh app/build/outputs/apk/debug/
+            ls -lh "$APK"
           else
-            echo "❌ APK yaratilmadi!"
+            echo "❌ APK yaratilmadi"
             exit 1
           fi
