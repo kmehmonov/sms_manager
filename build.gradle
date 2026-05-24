@@ -1,0 +1,5 @@
+// Root darajadagi build fayl — barcha quyi modullar uchun umumiy konfiguratsiya
+plugins {
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.kotlin.android) apply false
+}

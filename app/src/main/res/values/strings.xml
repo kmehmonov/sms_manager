@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Ilova nomi -->
+    <string name="app_name">SMS Manager</string>
+
+    <!-- Bo'limlar sarlavhalari -->
+    <string name="section_file">📁 CSV Fayl</string>
+    <string name="section_settings">⚙️ Sozlamalar</string>
+    <string name="section_progress">📊 Jarayon</string>
+    <string name="section_log">📋 Yuborish logi</string>
+
+    <!-- Tugmalar matni -->
+    <string name="btn_select_file">CSV faylni tanlash</string>
+    <string name="btn_start">Yuborishni boshlash</string>
+    <string name="btn_stop">To\'xtatish</string>
+    <string name="btn_clear">Tozalash</string>
+
+    <!-- Holat xabarlari -->
+    <string name="no_file_selected">Fayl tanlanmagan</string>
+    <string name="progress_idle">Tayyor</string>
+    <string name="skip_header">Birinchi qatorni (sarlavhani) o\'tkazib yubor</string>
+
+    <!-- Ruxsat xabarlari -->
+    <string name="permission_required">SMS yuborish uchun ruxsat berilmagan. Iltimos, sozlamalarda SEND_SMS ruxsatini yoqing.</string>
+    <string name="permission_rationale">Bu ilova CSV fayldagi raqamlarga SMS yuborish uchun sizning ruxsatingizga muhtoj.</string>
+
+    <!-- Xato xabarlari -->
+    <string name="error_no_file">Iltimos, avval CSV faylni tanlang</string>
+    <string name="error_empty_file">CSV fayl bo\'sh yoki raqamlar topilmadi</string>
+    <string name="error_invalid_number">Noto\'g\'ri raqam formati</string>
+
+    <!-- Muvaffaqiyat xabarlari -->
+    <string name="sending_complete">Yuborish tugadi!</string>
+    <string name="sms_sent">Yuborildi ✓</string>
+    <string name="sms_failed">Xato ✗</string>
+    <string name="sms_pending">Kutilmoqda ⏳</string>
+</resources>

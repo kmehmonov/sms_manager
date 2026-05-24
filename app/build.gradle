@@ -1,0 +1,67 @@
+// App moduli uchun build konfiguratsiyasi
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+}
+
+android {
+    namespace = "com.smsmanager.app"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "com.smsmanager.app"
+        minSdk = 24          // Android 7.0 va undan yuqori
+        targetSdk = 35       // Eng so'nggi barqaror versiya
+        versionCode = 1
+        versionName = "1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+
+    // Java va Kotlin versiyalarini belgilash
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+
+    // ViewBinding yoqish — XML layout elementlariga xavfsiz kirish uchun
+    buildFeatures {
+        viewBinding = true
+    }
+}
+
+dependencies {
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.material)
+    implementation(libs.androidx.activity)
+    implementation(libs.androidx.constraintlayout)
+
+    // ViewModel va LiveData — UI holati boshqaruvi uchun
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.lifecycle.livedata.ktx)
+
+    // RecyclerView — log ro'yxatini ko'rsatish uchun
+    implementation(libs.androidx.recyclerview)
+
+    // Coroutines — fon rejimida SMS yuborish uchun
+    implementation(libs.kotlinx.coroutines.android)
+
+    // Test kutubxonalari
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+}

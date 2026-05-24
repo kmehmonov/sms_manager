@@ -1,0 +1,26 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/asLocalStorage.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# APK fayllarini git'ga yuklamaymiz
+*.apk
+*.aab
+
+# Keystore fayllarini maxfiy saqlash
+*.jks
+*.keystore
+
+# Gradle wrapper jar kerak (istisno)
+!gradle/wrapper/gradle-wrapper.jar
