@@ -1,37 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Ilova nomi -->
     <string name="app_name">SMS Manager</string>
+    <string name="app_subtitle">Ommaviy SMS yuborish vositasi</string>
 
-    <!-- Bo'limlar sarlavhalari -->
-    <string name="section_file">📁 CSV Fayl</string>
-    <string name="section_settings">⚙️ Sozlamalar</string>
-    <string name="section_progress">📊 Jarayon</string>
-    <string name="section_log">📋 Yuborish logi</string>
+    <!-- Bo\'limlar -->
+    <string name="section_file">CSV Fayl</string>
+    <string name="section_settings">Sozlamalar</string>
+    <string name="section_delay">Kutish vaqti (sekund)</string>
+    <string name="section_progress">Jarayon</string>
+    <string name="section_log">Yuborish logi</string>
 
-    <!-- Tugmalar matni -->
-    <string name="btn_select_file">CSV faylni tanlash</string>
+    <!-- Tugmalar -->
+    <string name="btn_select_file">Fayl tanlash</string>
     <string name="btn_start">Yuborishni boshlash</string>
     <string name="btn_stop">To\'xtatish</string>
     <string name="btn_clear">Tozalash</string>
+    <string name="btn_preview">Ko\'rish</string>
+    <string name="btn_close">Yopish</string>
 
-    <!-- Holat xabarlari -->
+    <!-- Fayl holati -->
     <string name="no_file_selected">Fayl tanlanmagan</string>
+    <string name="tap_to_preview">Ko\'rish uchun bosing →</string>
     <string name="progress_idle">Tayyor</string>
-    <string name="skip_header">Birinchi qatorni (sarlavhani) o\'tkazib yubor</string>
 
-    <!-- Ruxsat xabarlari -->
-    <string name="permission_required">SMS yuborish uchun ruxsat berilmagan. Iltimos, sozlamalarda SEND_SMS ruxsatini yoqing.</string>
-    <string name="permission_rationale">Bu ilova CSV fayldagi raqamlarga SMS yuborish uchun sizning ruxsatingizga muhtoj.</string>
+    <!-- Sozlamalar -->
+    <string name="skip_header">Birinchi qator sarlavha (o\'tkazib yubor)</string>
+    <string name="delay_min_label">Minimal</string>
+    <string name="delay_max_label">Maksimal</string>
+    <string name="delay_suffix">sek</string>
+    <string name="delay_hint_min">4</string>
+    <string name="delay_hint_max">6</string>
+    <string name="batch_pause_info">Har 20 ta SMS dan keyin 30–60 sek tanaffus</string>
 
-    <!-- Xato xabarlari -->
+    <!-- Ruxsat -->
+    <string name="permission_rationale">SMS yuborish uchun sizning ruxsatingiz kerak.</string>
+
+    <!-- Xatolar -->
     <string name="error_no_file">Iltimos, avval CSV faylni tanlang</string>
     <string name="error_empty_file">CSV fayl bo\'sh yoki raqamlar topilmadi</string>
     <string name="error_invalid_number">Noto\'g\'ri raqam formati</string>
+    <string name="error_delay_invalid">Kutish vaqti noto\'g\'ri. Min ≥ 1, Max ≥ Min bo\'lishi kerak.</string>
 
-    <!-- Muvaffaqiyat xabarlari -->
-    <string name="sending_complete">Yuborish tugadi!</string>
-    <string name="sms_sent">Yuborildi ✓</string>
-    <string name="sms_failed">Xato ✗</string>
-    <string name="sms_pending">Kutilmoqda ⏳</string>
+    <!-- SMS holatlari -->
+    <string name="sms_sent">Yuborildi</string>
+    <string name="sms_failed">Xato</string>
+    <string name="sms_pending">Navbatda</string>
+    <string name="sms_sending">Yuborilmoqda</string>
+
+    <!-- CSV Preview -->
+    <string name="csv_preview_title">CSV tarkibi</string>
+    <string name="csv_col_number">Raqam</string>
+    <string name="csv_col_message">Xabar</string>
+
+    <!-- Log detail dialog -->
+    <string name="log_detail_title">SMS tafsiloti</string>
+    <string name="log_field_phone">Telefon</string>
+    <string name="log_field_message">Xabar</string>
+    <string name="log_field_status">Holat</string>
+    <string name="log_field_error">Xato</string>
 </resources>

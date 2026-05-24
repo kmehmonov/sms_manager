@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- CSV preview ro'yxatidagi har bir qator -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp"
+    android:background="?attr/selectableItemBackground">
+
+    <!-- Tartib raqami + telefon -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="2"
+        android:orientation="vertical"
+        android:paddingEnd="8dp">
+
+        <TextView
+            android:id="@+id/tvCsvPhone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:maxLines="1"
+            android:ellipsize="end"
+            tools:text="+998901234567" />
+
+        <TextView
+            android:id="@+id/tvCsvIndex"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="11sp"
+            android:textColor="@color/text_hint"
+            tools:text="#1" />
+
+    </LinearLayout>
+
+    <!-- Ajratuvchi vertikal chiziq -->
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:background="@color/divider"
+        android:layout_marginEnd="12dp" />
+
+    <!-- Xabar matni (2 qatorgacha) -->
+    <TextView
+        android:id="@+id/tvCsvMessage"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="3"
+        android:textSize="12sp"
+        android:textColor="@color/text_secondary"
+        android:maxLines="2"
+        android:ellipsize="end"
+        tools:text="Salom Ahmadjon! Bu maxsus taklif sizga yuborilyapti, tez foydalaning." />
+
+</LinearLayout>

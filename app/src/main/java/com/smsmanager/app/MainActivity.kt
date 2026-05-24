@@ -13,151 +13,111 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.smsmanager.app.databinding.ActivityMainBinding
+import com.smsmanager.app.databinding.DialogCsvPreviewBinding
 
 /**
- * Ilovaning asosiy Activity sinfi.
+ * Asosiy Activity.
  *
- * Bu sinf quyidagi vazifalarni bajaradi:
- * 1. SMS ruxsatini so'rash va boshqarish
- * 2. CSV fayl tanlash (file picker)
- * 3. ViewModel bilan bog'liq UI yangilashlari
- * 4. RecyclerView log ro'yxatini boshqarish
+ * Vazifalar:
+ * - SMS ruxsatini boshqarish
+ * - CSV fayl tanlash va preview ko'rsatish
+ * - Delay sozlamalarini o'qish
+ * - ViewModel bilan bog'liq UI yangilashlari
+ * - Log elementlariga bosish — tafsilot dialog
  */
 class MainActivity : AppCompatActivity() {
 
-    // ─── ViewBinding — XML elementlariga xavfsiz kirish ────────────────────
     private lateinit var binding: ActivityMainBinding
-
-    // ─── ViewModel — biznes mantiq va holat ─────────────────────────────────
     private val viewModel: SmsViewModel by viewModels()
-
-    // ─── RecyclerView adapteri — log ro'yxati ───────────────────────────────
     private lateinit var logAdapter: LogAdapter
 
-    // ─── O'qilgan kontaktlar ro'yxati ───────────────────────────────────────
     private var contacts: List<SmsContact> = emptyList()
+    private var selectedUri: Uri? = null
 
-    // ─── Fayl tanlash uchun ActivityResult launcher ─────────────────────────
-    /**
-     * File picker — foydalanuvchi telefon xotirasidan CSV fayl tanlaganda ishga tushadi.
-     * ActivityResultContracts.GetContent() — zamonaviy API, eski startActivityForResult o'rniga.
-     */
+    // ─── Fayl picker launcher ──────────────────────────────────────────────────
     private val filePickerLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        if (uri != null) {
-            // Fayl tanlandi — o'qishni boshlaymiz
-            onFileSelected(uri)
-        } else {
-            // Foydalanuvchi fayl tanlamay orqaga qaytdi
-            showToast("Fayl tanlanmadi")
-        }
+        uri?.let { onFileSelected(it) } ?: showToast("Fayl tanlanmadi")
     }
 
-    // ─── SMS ruxsatini so'rash uchun launcher ───────────────────────────────
-    /**
-     * Runtime ruxsat so'rash — foydalanuvchi javob berganda bu callback ishga tushadi.
-     */
+    // ─── SMS ruxsat launcher ───────────────────────────────────────────────────
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
-            // Ruxsat berildi — yuborishni boshlaymiz
-            showToast("SMS ruxsati berildi ✓")
-            startSendingIfReady()
-        } else {
-            // Ruxsat rad etildi — foydalanuvchiga tushuntirish beramiz
-            showPermissionDeniedDialog()
-        }
+    ) { granted ->
+        if (granted) startSendingIfReady()
+        else showPermissionDeniedDialog()
     }
 
-    // ─── Activity lifecycle ──────────────────────────────────────────────────
+    // ─── Lifecycle ─────────────────────────────────────────────────────────────
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // ViewBinding — XML layoutni yuklash
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Toolbar'ni o'rnatamiz
-        setSupportActionBar(binding.toolbar)
-
-        // RecyclerView'ni sozlaymiz
         setupRecyclerView()
-
-        // Tugmalar uchun click listener'larni o'rnatamiz
         setupClickListeners()
-
-        // ViewModel'ni kuzatishni boshlaymiz
         observeViewModel()
     }
 
-    // ─── UI sozlash ─────────────────────────────────────────────────────────
+    // ─── UI sozlash ────────────────────────────────────────────────────────────
 
-    /**
-     * RecyclerView'ni sozlaydi — log ro'yxati uchun.
-     */
     private fun setupRecyclerView() {
-        logAdapter = LogAdapter()
+        logAdapter = LogAdapter { entry ->
+            // Log elementiga bosish — to'liq tafsilot dialogi
+            showLogDetailDialog(entry)
+        }
         binding.recyclerLog.apply {
             adapter = logAdapter
-            // LinearLayoutManager — elementlarni pastdan yuqoriga ko'rsatish uchun REVERSE
-            layoutManager = LinearLayoutManager(this@MainActivity).also {
-                it.stackFromEnd = true  // Yangi elementlar pastdan ko'rinadi
-                it.reverseLayout = false
+            layoutManager = LinearLayoutManager(this@MainActivity).apply {
+                stackFromEnd = true
             }
         }
     }
 
-    /**
-     * Barcha tugmalar uchun click listener'larni o'rnatadi.
-     */
     private fun setupClickListeners() {
-        // CSV fayl tanlash tugmasi
+        // Fayl tanlash
         binding.btnSelectFile.setOnClickListener {
-            // File picker'ni ochamiz — faqat CSV va text fayllar ko'rinadi
             filePickerLauncher.launch("*/*")
         }
 
-        // Yuborishni boshlash tugmasi
-        binding.btnStart.setOnClickListener {
-            onStartClicked()
+        // Fayl info kartasiga bosish — CSV preview
+        binding.layoutFileInfo.setOnClickListener {
+            selectedUri?.let { showCsvPreviewDialog() }
+        }
+        binding.btnPreviewCsv.setOnClickListener {
+            selectedUri?.let { showCsvPreviewDialog() }
         }
 
-        // To'xtatish tugmasi
-        binding.btnStop.setOnClickListener {
-            onStopClicked()
-        }
+        // Yuborishni boshlash
+        binding.btnStart.setOnClickListener { onStartClicked() }
 
-        // Log'ni tozalash tugmasi
-        binding.btnClearLog.setOnClickListener {
-            viewModel.clearLog()
-        }
+        // To'xtatish
+        binding.btnStop.setOnClickListener { onStopClicked() }
+
+        // Log tozalash
+        binding.btnClearLog.setOnClickListener { viewModel.clearLog() }
     }
 
-    /**
-     * ViewModel LiveData'larini kuzatadi va UI'ni yangilaydi.
-     */
     private fun observeViewModel() {
-        // Log ro'yxatini kuzatish
+        // Log ro'yxati
         viewModel.logEntries.observe(this) { entries ->
             logAdapter.submitList(entries.toList()) {
-                // Ro'yxat yangilangandan so'ng eng pastga skroll qilamiz
-                if (entries.isNotEmpty()) {
+                if (entries.isNotEmpty())
                     binding.recyclerLog.scrollToPosition(entries.size - 1)
-                }
             }
         }
 
-        // Yuborish holati o'zgarishlarini kuzatish
+        // Yuborish holati
         viewModel.sendingState.observe(this) { state ->
             updateProgressUI(state)
             updateButtonStates(state.isRunning)
         }
 
-        // Xato xabarlarini kuzatish
+        // Xato xabarlari
         viewModel.errorEvent.observe(this) { error ->
             if (error != null) {
                 showToast(error)
@@ -166,200 +126,232 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ─── UI yangilash ────────────────────────────────────────────────────────
+    // ─── Progress UI yangilash ─────────────────────────────────────────────────
 
-    /**
-     * Progress blokini yangilaydi.
-     */
     private fun updateProgressUI(state: SendingState) {
+        // Statistika kartalari
+        binding.tvStatSent.text = state.sent.toString()
+        binding.tvStatFailed.text = state.failed.toString()
+        binding.tvStatTotal.text = state.total.toString()
+
         if (state.total > 0) {
-            // Progress matnini yangilaymiz: "45 / 120 yuborildi"
-            binding.tvProgress.text = "${state.sent + state.failed} / ${state.total} yuborildi"
+            val done = state.sent + state.failed
+            val percent = (done * 100 / state.total)
 
-            // Progress bar'ni yangilaymiz
+            binding.tvProgress.text = "$done / ${state.total} yuborildi"
+            binding.tvProgressPercent.text = "$percent%"
             binding.progressBar.max = state.total
-            binding.progressBar.progress = state.sent + state.failed
-
-            // Joriy holat matni
+            binding.progressBar.progress = done
             binding.tvCurrentStatus.text = state.currentMessage
         } else {
             binding.tvProgress.text = getString(R.string.progress_idle)
+            binding.tvProgressPercent.text = "0%"
             binding.progressBar.progress = 0
             binding.tvCurrentStatus.text = ""
         }
     }
 
-    /**
-     * Yuborish holatiga qarab tugmalarni yoqadi/o'chiradi.
-     */
     private fun updateButtonStates(isRunning: Boolean) {
         binding.btnStart.isEnabled = !isRunning && contacts.isNotEmpty()
         binding.btnStop.isEnabled = isRunning
         binding.btnSelectFile.isEnabled = !isRunning
         binding.checkSkipHeader.isEnabled = !isRunning
+        binding.etMinDelay.isEnabled = !isRunning
+        binding.etMaxDelay.isEnabled = !isRunning
     }
 
-    // ─── Fayl tanlash ────────────────────────────────────────────────────────
+    // ─── Fayl tanlash ──────────────────────────────────────────────────────────
 
-    /**
-     * Fayl tanlanganda ishga tushadi.
-     * CSV faylni o'qib, kontaktlar ro'yxatini hosil qiladi.
-     */
     private fun onFileSelected(uri: Uri) {
+        selectedUri = uri
         try {
-            // Fayl nomini aniqlaymiz (foydalanuvchiga ko'rsatish uchun)
             val fileName = getFileName(uri)
-            binding.tvFileName.text = "📄 $fileName"
-
-            // CSV faylni o'qiymiz
             val skipHeader = binding.checkSkipHeader.isChecked
             contacts = CsvParser.parse(this, uri, skipHeader)
 
             if (contacts.isEmpty()) {
                 showToast(getString(R.string.error_empty_file))
-                binding.tvContactCount.text = ""
+                showNoFileState()
                 binding.btnStart.isEnabled = false
             } else {
-                // O'qilgan raqamlar sonini ko'rsatamiz
-                binding.tvContactCount.text = "✓ ${contacts.size} ta raqam o'qildi"
+                // Fayl info ko'rsatamiz
+                binding.tvFileName.text = fileName
+                binding.tvContactCount.text = "${contacts.size} ta raqam topildi"
+                binding.layoutFileInfo.visibility = View.VISIBLE
+                binding.layoutNoFile.visibility = View.GONE
                 binding.btnStart.isEnabled = true
-                showToast("${contacts.size} ta kontakt muvaffaqiyatli yuklandi")
+                showToast("${contacts.size} ta kontakt yuklandi ✓")
             }
-
         } catch (e: Exception) {
             showToast("Fayl o'qishda xato: ${e.message}")
-            binding.tvFileName.text = "❌ Fayl o'qib bo'lmadi"
-            binding.tvContactCount.text = ""
-            binding.btnStart.isEnabled = false
+            showNoFileState()
         }
     }
 
-    /**
-     * URI dan fayl nomini oladi.
-     */
+    private fun showNoFileState() {
+        binding.layoutFileInfo.visibility = View.GONE
+        binding.layoutNoFile.visibility = View.VISIBLE
+        contacts = emptyList()
+        binding.btnStart.isEnabled = false
+    }
+
     private fun getFileName(uri: Uri): String {
-        // ContentResolver orqali fayl nomini so'raymiz
-        val cursor = contentResolver.query(uri, null, null, null, null)
-        cursor?.use {
-            if (it.moveToFirst()) {
-                val nameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (nameIndex != -1) {
-                    return it.getString(nameIndex) ?: "fayl.csv"
-                }
+        contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (idx != -1) return cursor.getString(idx) ?: "fayl.csv"
             }
         }
-        // Agar nom topilmasa, URI dan oxirgi qismni olamiz
         return uri.lastPathSegment ?: "fayl.csv"
+    }
+
+    // ─── CSV Preview dialogi ───────────────────────────────────────────────────
+
+    /**
+     * CSV tarkibini dialog oynada ko'rsatadi.
+     * RecyclerView bilan skrollable ro'yxat.
+     */
+    private fun showCsvPreviewDialog() {
+        if (contacts.isEmpty()) {
+            showToast("Ko'rsatadigan ma'lumot yo'q")
+            return
+        }
+
+        val dialogBinding = DialogCsvPreviewBinding.inflate(layoutInflater)
+        val adapter = CsvPreviewAdapter(contacts)
+
+        dialogBinding.recyclerCsvPreview.apply {
+            this.adapter = adapter
+            layoutManager = LinearLayoutManager(this@MainActivity)
+        }
+
+        MaterialAlertDialogBuilder(this, com.google.android.material.R.style.ThemeOverlay_Material3_MaterialAlertDialog_Centered)
+            .setTitle("${getString(R.string.csv_preview_title)} — ${contacts.size} ta")
+            .setView(dialogBinding.root)
+            .setPositiveButton(R.string.btn_close, null)
+            .show()
     }
 
     // ─── SMS yuborish ─────────────────────────────────────────────────────────
 
-    /**
-     * "Yuborishni boshlash" tugmasi bosilganda.
-     */
     private fun onStartClicked() {
-        if (contacts.isEmpty()) {
-            showToast(getString(R.string.error_no_file))
-            return
-        }
-
-        // SMS ruxsatini tekshiramiz
+        if (contacts.isEmpty()) { showToast(getString(R.string.error_no_file)); return }
         checkSmsPermissionAndStart()
     }
 
-    /**
-     * "To'xtatish" tugmasi bosilganda.
-     */
     private fun onStopClicked() {
-        AlertDialog.Builder(this)
-            .setTitle("Yuborishni to'xtatish")
-            .setMessage("Hozirgi SMS yuborilgandan so'ng jarayon to'xtatiladi. Davom ettirasizmi?")
+        MaterialAlertDialogBuilder(this)
+            .setTitle("To'xtatish")
+            .setMessage("Joriy SMS yuborilib bo'lgach jarayon to'xtatiladi. Davom ettirasizmi?")
             .setPositiveButton("Ha, to'xtat") { _, _ ->
                 viewModel.stopSending()
-                showToast("To'xtatilmoqda...")
+                showToast("To'xtatilmoqda…")
             }
-            .setNegativeButton("Yo'q, davom et", null)
+            .setNegativeButton("Yo'q", null)
             .show()
     }
 
-    /**
-     * SMS ruxsatini tekshiradi:
-     * - Agar ruxsat mavjud bo'lsa — yuborishni boshlaydi
-     * - Agar ruxsat yo'q bo'lsa — so'raydi
-     */
     private fun checkSmsPermissionAndStart() {
         when {
-            // Ruxsat allaqachon berilgan
-            ContextCompat.checkSelfPermission(
-                this, Manifest.permission.SEND_SMS
-            ) == PackageManager.PERMISSION_GRANTED -> {
-                startSendingIfReady()
-            }
+            ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
+                    == PackageManager.PERMISSION_GRANTED -> startSendingIfReady()
 
-            // Ruxsat so'rash oldidan tushuntirish kerak (foydalanuvchi oldin rad etgan)
-            shouldShowRequestPermissionRationale(Manifest.permission.SEND_SMS) -> {
-                AlertDialog.Builder(this)
+            shouldShowRequestPermissionRationale(Manifest.permission.SEND_SMS) ->
+                MaterialAlertDialogBuilder(this)
                     .setTitle("SMS Ruxsati kerak")
                     .setMessage(getString(R.string.permission_rationale))
                     .setPositiveButton("Ruxsat berish") { _, _ ->
                         requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
                     }
-                    .setNegativeButton("Bekor qilish", null)
+                    .setNegativeButton("Bekor", null)
                     .show()
-            }
 
-            // Ruxsat so'raymiz
-            else -> {
-                requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-            }
+            else -> requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
         }
     }
 
     /**
-     * Ruxsat tekshirilgandan so'ng yuborishni boshlaydi.
+     * Delay qiymatlarini tekshirib, yuborishni boshlaydi.
      */
     private fun startSendingIfReady() {
-        if (contacts.isEmpty()) {
-            showToast(getString(R.string.error_no_file))
+        if (contacts.isEmpty()) { showToast(getString(R.string.error_no_file)); return }
+
+        // Delay qiymatlarini o'qiymiz
+        val minSec = binding.etMinDelay.text.toString().toLongOrNull() ?: 4L
+        val maxSec = binding.etMaxDelay.text.toString().toLongOrNull() ?: 6L
+
+        if (minSec < 1 || maxSec < minSec) {
+            showToast(getString(R.string.error_delay_invalid))
+            binding.tilMinDelay.error = if (minSec < 1) "Min ≥ 1" else null
+            binding.tilMaxDelay.error = if (maxSec < minSec) "Max ≥ Min" else null
             return
         }
+        binding.tilMinDelay.error = null
+        binding.tilMaxDelay.error = null
 
-        // Tasdiq dialogi — tasodifan bosib yuborilmasin
-        AlertDialog.Builder(this)
+        // Millisekundga o'tkazamiz
+        val minMs = minSec * 1000L
+        val maxMs = maxSec * 1000L
+
+        MaterialAlertDialogBuilder(this)
             .setTitle("Yuborishni boshlash")
-            .setMessage("${contacts.size} ta raqamga SMS yuboriladi.\nDavom etishni xohlaysizmi?")
+            .setMessage(
+                "${contacts.size} ta raqamga SMS yuboriladi.\n" +
+                "Kutish: ${minSec}–${maxSec} sekund\n\n" +
+                "Davom etasizmi?"
+            )
             .setPositiveButton("Ha, boshlash") { _, _ ->
-                viewModel.startSending(contacts)
+                viewModel.startSending(contacts, minMs, maxMs)
             }
-            .setNegativeButton("Bekor qilish", null)
+            .setNegativeButton("Bekor", null)
             .show()
     }
 
-    // ─── Ruxsat rad etilganda ────────────────────────────────────────────────
+    // ─── Log tafsilot dialogi ──────────────────────────────────────────────────
 
     /**
-     * Ruxsat rad etilganda foydalanuvchiga yo'riqnoma ko'rsatadi.
+     * Log elementiga bosilganda to'liq tafsilotni ko'rsatadi.
+     * Uzun xabar bu yerda to'liq skrollable ko'rinishda chiqadi.
      */
+    private fun showLogDetailDialog(entry: SmsLogEntry) {
+        val statusText = when (entry.status) {
+            SmsStatus.PENDING -> "⏳ Navbatda"
+            SmsStatus.SENDING -> "📤 Yuborilmoqda"
+            SmsStatus.SENT    -> "✅ Muvaffaqiyatli yuborildi"
+            SmsStatus.FAILED  -> "❌ Xato: ${entry.errorMessage ?: "Noma'lum"}"
+        }
+
+        val message = buildString {
+            appendLine("📱 Telefon:  ${entry.phoneNumber}")
+            appendLine()
+            appendLine("📝 Xabar:")
+            appendLine(entry.message)
+            appendLine()
+            appendLine("📊 Holat:  $statusText")
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("#${entry.index} — ${entry.phoneNumber}")
+            .setMessage(message)
+            .setPositiveButton(R.string.btn_close, null)
+            .show()
+    }
+
+    // ─── Ruxsat rad etilganda ─────────────────────────────────────────────────
+
     private fun showPermissionDeniedDialog() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("SMS Ruxsati berilmadi")
             .setMessage(
-                "SMS yuborish uchun ruxsat talab qilinadi.\n\n" +
-                "Ruxsat berish uchun:\n" +
-                "1. Telefon Sozlamalari → Ilovalar\n" +
-                "2. SMS Manager → Ruxsatlar\n" +
-                "3. SMS → Ruxsat berish"
+                "SMS yuborish uchun ruxsat kerak.\n\n" +
+                "Sozlamalar → Ilovalar → SMS Manager → Ruxsatlar → SMS → Ruxsat berish"
             )
             .setPositiveButton("Tushundim", null)
             .show()
     }
 
-    // ─── Yordamchi ─────────────────────────────────────────────────────────────
+    // ─── Yordamchi ────────────────────────────────────────────────────────────
 
-    /**
-     * Qisqa Toast xabarini ko'rsatadi.
-     */
-    private fun showToast(message: String) {
+    private fun showToast(message: String) =
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-    }
 }

@@ -16,29 +16,23 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Har bir SMS uchun log yozuvi modeli.
- * UI'da ro'yxat sifatida ko'rsatiladi.
+ * Har bir SMS uchun log yozuvi.
  */
 data class SmsLogEntry(
     val index: Int,
     val phoneNumber: String,
-    val messagePreview: String,  // Xabarning birinchi 50 belgisi
+    val message: String,          // To'liq xabar (dialog uchun)
+    val messagePreview: String,   // Qisqa ko'rinish (1 qator)
     var status: SmsStatus,
     var errorMessage: String? = null
 )
 
-/**
- * SMS holat turlari.
- */
 enum class SmsStatus {
-    PENDING,   // Navbatda kutmoqda
-    SENDING,   // Yuborilmoqda
-    SENT,      // Muvaffaqiyatli yuborildi
-    FAILED     // Xato yuz berdi
+    PENDING, SENDING, SENT, FAILED
 }
 
 /**
- * Umumiy yuborish holati — UI uchun.
+ * Umumiy yuborish holati.
  */
 data class SendingState(
     val isRunning: Boolean = false,
@@ -50,279 +44,192 @@ data class SendingState(
 
 /**
  * SMS yuborish biznes mantiqini boshqaruvchi ViewModel.
- *
- * AndroidViewModel ishlatilmoqda — Application kontekstiga ega bo'lish uchun.
- * SmsManager API'si kontekst talab qilgani uchun zarur.
  */
 class SmsViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "SmsViewModel"
-
-        // Har bir SMS orasidagi minimal kutish vaqti (millisekund)
-        private const val MIN_DELAY_MS = 4000L
-        // Har bir SMS orasidagi maksimal kutish vaqti (millisekund)
-        private const val MAX_DELAY_MS = 6000L
-
-        // Har 20 ta SMS dan keyin uzunroq tanaffus
+        // Har 20 ta SMS dan keyin uzun tanaffus
         private const val BATCH_SIZE = 20
-        private const val MIN_BATCH_DELAY_MS = 30_000L  // 30 sekund
-        private const val MAX_BATCH_DELAY_MS = 60_000L  // 60 sekund
+        private const val MIN_BATCH_DELAY_MS = 30_000L
+        private const val MAX_BATCH_DELAY_MS = 60_000L
     }
 
-    // ─── LiveData'lar — UI observ qiladi ───────────────────────────────────
-
-    // SMS log ro'yxati (har bir SMS uchun yozuv)
+    // ─── LiveData'lar ──────────────────────────────────────────────────────────
     private val _logEntries = MutableLiveData<List<SmsLogEntry>>(emptyList())
     val logEntries: LiveData<List<SmsLogEntry>> = _logEntries
 
-    // Umumiy yuborish holati
     private val _sendingState = MutableLiveData(SendingState())
     val sendingState: LiveData<SendingState> = _sendingState
 
-    // Xato xabarlari (bir martalik)
     private val _errorEvent = MutableLiveData<String?>()
     val errorEvent: LiveData<String?> = _errorEvent
 
-    // ─── Ichki o'zgaruvchilar ────────────────────────────────────────────────
-
-    // Yuborish jarayonini to'xtatish uchun Job
+    // ─── Ichki o'zgaruvchilar ──────────────────────────────────────────────────
     private var sendingJob: Job? = null
-
-    // Joriy log yozuvlari ro'yxatining o'zgaruvchan nusxasi
     private val currentEntries = mutableListOf<SmsLogEntry>()
 
     /**
-     * CSV kontaktlar ro'yxatiga asosan SMS yuborishni boshlaydi.
-     * Coroutine fon rejimida ishlaydi — UI qotib qolmaydi.
+     * SMS yuborishni boshlaydi.
+     *
+     * @param contacts     Kontaktlar ro'yxati (CSV dan o'qilgan)
+     * @param minDelayMs   SMS'lar orasidagi minimal kutish vaqti (millisekund)
+     * @param maxDelayMs   SMS'lar orasidagi maksimal kutish vaqti (millisekund)
      */
-    fun startSending(contacts: List<SmsContact>) {
-        // Eski ishni to'xtatamiz (agar bo'lsa)
+    fun startSending(
+        contacts: List<SmsContact>,
+        minDelayMs: Long = 4_000L,
+        maxDelayMs: Long = 6_000L
+    ) {
         sendingJob?.cancel()
 
-        // Log ro'yxatini tayyorlaymiz — barchasi "kutilmoqda" holatida
+        // Log ro'yxatini tayyorlaymiz
         currentEntries.clear()
         currentEntries.addAll(contacts.map { contact ->
             SmsLogEntry(
                 index = contact.index,
                 phoneNumber = contact.phoneNumber,
-                messagePreview = contact.message.take(60) + if (contact.message.length > 60) "..." else "",
+                message = contact.message,
+                messagePreview = contact.message.take(60) +
+                        if (contact.message.length > 60) "…" else "",
                 status = SmsStatus.PENDING
             )
         })
         _logEntries.postValue(currentEntries.toList())
-
-        // Yuborish holatini yangilaymiz
         _sendingState.postValue(
-            SendingState(
-                isRunning = true,
-                sent = 0,
-                failed = 0,
-                total = contacts.size,
-                currentMessage = "Tayyorlanmoqda..."
-            )
+            SendingState(isRunning = true, total = contacts.size, currentMessage = "Tayyorlanmoqda…")
         )
 
-        // Fon rejimida ishni boshlaymiz
         sendingJob = viewModelScope.launch(Dispatchers.IO) {
             var sentCount = 0
             var failedCount = 0
 
             contacts.forEachIndexed { i, contact ->
-                // Agar to'xtatilgan bo'lsa — chiqamiz
-                if (!isActive) {
-                    Log.d(TAG, "Yuborish to'xtatildi, ${i}/${contacts.size} bajarildi")
-                    return@forEachIndexed
-                }
+                if (!isActive) return@forEachIndexed
 
-                // Joriy elementni "yuborilmoqda" holatiga o'tkazamiz
                 updateEntryStatus(contact.index, SmsStatus.SENDING)
-
-                // UI'ga joriy holat haqida xabar beramiz
                 withContext(Dispatchers.Main) {
                     _sendingState.value = _sendingState.value?.copy(
-                        currentMessage = "${contact.phoneNumber} ga yuborilmoqda..."
+                        currentMessage = "${contact.phoneNumber} ga yuborilmoqda…"
                     )
                 }
 
-                // Telefon raqamini tekshiramiz
+                // Raqam validatsiyasi
                 if (!CsvParser.isValidPhoneNumber(contact.phoneNumber)) {
-                    Log.w(TAG, "Noto'g'ri raqam: ${contact.phoneNumber}")
                     failedCount++
-                    updateEntryStatus(
-                        index = contact.index,
-                        status = SmsStatus.FAILED,
-                        error = "Noto'g'ri raqam formati"
-                    )
+                    updateEntryStatus(contact.index, SmsStatus.FAILED, "Noto'g'ri raqam formati")
+                    Log.w(TAG, "Noto'g'ri raqam: ${contact.phoneNumber}")
                 } else {
-                    // SMS yuborishga harakat qilamiz
-                    val success = sendSms(
-                        context = getApplication(),
-                        phoneNumber = contact.phoneNumber,
-                        message = contact.message
-                    )
-
+                    val success = sendSms(getApplication(), contact.phoneNumber, contact.message)
                     if (success) {
                         sentCount++
                         updateEntryStatus(contact.index, SmsStatus.SENT)
-                        Log.d(TAG, "✓ Yuborildi: ${contact.phoneNumber}")
+                        Log.d(TAG, "✓ ${contact.phoneNumber}")
                     } else {
                         failedCount++
-                        updateEntryStatus(
-                            index = contact.index,
-                            status = SmsStatus.FAILED,
-                            error = "Yuborishda xato yuz berdi"
-                        )
-                        Log.w(TAG, "✗ Xato: ${contact.phoneNumber}")
+                        updateEntryStatus(contact.index, SmsStatus.FAILED, "Yuborishda xato")
+                        Log.w(TAG, "✗ ${contact.phoneNumber}")
                     }
                 }
 
-                // Progress'ni yangilaymiz
-                val currentSent = sentCount
-                val currentFailed = failedCount
+                // Progress yangilash
+                val s = sentCount; val f = failedCount
                 withContext(Dispatchers.Main) {
-                    _sendingState.value = _sendingState.value?.copy(
-                        sent = currentSent,
-                        failed = currentFailed
-                    )
+                    _sendingState.value = _sendingState.value?.copy(sent = s, failed = f)
                 }
 
-                // Keyingi SMSdan oldin kutamiz (oxirgi element bo'lmasa)
+                // Oxirgi element bo'lmasa — kutish
                 if (i < contacts.size - 1 && isActive) {
-                    // Har 20 ta SMSdan keyin uzunroq tanaffus
                     val isEndOfBatch = (i + 1) % BATCH_SIZE == 0
-                    val delayMs = if (isEndOfBatch) {
-                        val pause = (MIN_BATCH_DELAY_MS..MAX_BATCH_DELAY_MS).random()
-                        Log.d(TAG, "20 ta SMS yuborildi. ${pause/1000}s tanaffus...")
+                    val waitMs = if (isEndOfBatch) {
+                        val pause = randomLong(MIN_BATCH_DELAY_MS, MAX_BATCH_DELAY_MS)
+                        Log.d(TAG, "Batch tanaffus: ${pause / 1000}s")
                         withContext(Dispatchers.Main) {
                             _sendingState.value = _sendingState.value?.copy(
-                                currentMessage = "20 ta SMS yuborildi. ${pause/1000}s tanaffus..."
+                                currentMessage = "Batch tanaffus: ${pause / 1000} sekund…"
                             )
                         }
                         pause
                     } else {
-                        // Oddiy SMS orasidagi kutish (4-6 sekund)
-                        (MIN_DELAY_MS..MAX_DELAY_MS).random()
+                        // Foydalanuvchi belgilagan diapazonda random kutish
+                        randomLong(minDelayMs, maxDelayMs)
                     }
-
-                    delay(delayMs)
+                    delay(waitMs)
                 }
             }
 
-            // Yuborish tugadi — yakuniy holatni yangilaymiz
+            // Yakuniy holat
+            val finalSent = sentCount; val finalFailed = failedCount
             withContext(Dispatchers.Main) {
+                val msg = if (isActive)
+                    "✅ Tugadi! Muvaffaqiyatli: $finalSent, Xato: $finalFailed"
+                else
+                    "⏹ To'xtatildi. Muvaffaqiyatli: $finalSent, Xato: $finalFailed"
                 _sendingState.value = SendingState(
                     isRunning = false,
-                    sent = sentCount,
-                    failed = failedCount,
+                    sent = finalSent,
+                    failed = finalFailed,
                     total = contacts.size,
-                    currentMessage = if (isActive) {
-                        "✓ Yuborish tugadi! Muvaffaqiyatli: $sentCount, Xato: $failedCount"
-                    } else {
-                        "⏹ To'xtatildi. Muvaffaqiyatli: $sentCount, Xato: $failedCount"
-                    }
+                    currentMessage = msg
                 )
             }
         }
     }
 
-    /**
-     * SMS yuborishni to'xtatadi.
-     * Joriy SMS yuboriladi, undan keyingilari bekor qilinadi.
-     */
     fun stopSending() {
         sendingJob?.cancel()
-        Log.d(TAG, "Yuborish to'xtatilish buyrug'i berildi")
     }
 
-    /**
-     * Log ro'yxatini tozalaydi.
-     */
     fun clearLog() {
         currentEntries.clear()
         _logEntries.postValue(emptyList())
         _sendingState.postValue(SendingState())
     }
 
-    /**
-     * Xatoni "ko'rib bo'lindi" deb belgilaydi.
-     */
     fun onErrorShown() {
         _errorEvent.postValue(null)
     }
 
-    // ─── Yordamchi funksiyalar ────────────────────────────────────────────────
+    // ─── Yordamchi funksiyalar ─────────────────────────────────────────────────
 
-    /**
-     * SmsManager orqali SMS yuboradi.
-     * Uzun xabarlar avtomatik bo'laklarga bo'linadi.
-     *
-     * @return true — muvaffaqiyatli, false — xato
-     */
     private fun sendSms(context: Context, phoneNumber: String, message: String): Boolean {
         return try {
-            // SmsManager — SMS yuborish uchun Android API
             @Suppress("DEPRECATION")
-            val smsManager: SmsManager = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                context.getSystemService(SmsManager::class.java)
-            } else {
-                SmsManager.getDefault()
-            }
+            val smsManager: SmsManager =
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    context.getSystemService(SmsManager::class.java)
+                } else {
+                    SmsManager.getDefault()
+                }
 
-            // Xabarni bo'laklarga bo'lamiz (160 belgidan uzun bo'lsa)
-            // divideMessage() Unicodeni ham hisobga oladi (70 belgi/qism)
             val parts = smsManager.divideMessage(message)
-
             if (parts.size == 1) {
-                // Qisqa xabar — oddiy yuborish
-                smsManager.sendTextMessage(
-                    phoneNumber,  // Qabul qiluvchi raqami
-                    null,         // Yuboruvchi raqami (null = sim karta)
-                    message,      // Xabar matni
-                    null,         // Yuborilganda olib keluvchi PendingIntent
-                    null          // Yetib borganda olib keluvchi PendingIntent
-                )
+                smsManager.sendTextMessage(phoneNumber, null, message, null, null)
             } else {
-                // Uzun xabar — ko'p qismli yuborish
-                Log.d(TAG, "Uzun xabar: ${parts.size} qismga bo'lindi")
-                smsManager.sendMultipartTextMessage(
-                    phoneNumber,
-                    null,
-                    parts,
-                    null,
-                    null
-                )
+                Log.d(TAG, "Uzun xabar: ${parts.size} qism — ${contact(phoneNumber)}")
+                smsManager.sendMultipartTextMessage(phoneNumber, null, parts, null, null)
             }
-
-            true // Muvaffaqiyatli
-        } catch (e: IllegalArgumentException) {
-            Log.e(TAG, "Noto'g'ri argument: ${e.message}")
-            false
+            true
         } catch (e: Exception) {
-            Log.e(TAG, "SMS yuborishda xato [${phoneNumber}]: ${e.message}", e)
+            Log.e(TAG, "SMS xato [$phoneNumber]: ${e.message}")
             false
         }
     }
 
-    /**
-     * Log yozuvining holatini yangilaydi va UI'ga xabar beradi.
-     */
     private fun updateEntryStatus(index: Int, status: SmsStatus, error: String? = null) {
-        val entryIndex = currentEntries.indexOfFirst { it.index == index }
-        if (entryIndex != -1) {
-            currentEntries[entryIndex] = currentEntries[entryIndex].copy(
-                status = status,
-                errorMessage = error
-            )
-            // Yangi ro'yxat nusxasini yuboramiz — LiveData kuzatuvchilarni xabardor qiladi
+        val idx = currentEntries.indexOfFirst { it.index == index }
+        if (idx != -1) {
+            currentEntries[idx] = currentEntries[idx].copy(status = status, errorMessage = error)
             _logEntries.postValue(currentEntries.toList())
         }
     }
 
-    /**
-     * Random oraliqdan son tanlash yordamchi funksiyasi.
-     */
-    private fun LongRange.random(): Long {
-        return first + (Math.random() * (last - first + 1)).toLong()
+    /** Ikki qiymat orasidan tasodifiy son (ikkala chegara ham ichki) */
+    private fun randomLong(min: Long, max: Long): Long {
+        if (min >= max) return min
+        return min + (Math.random() * (max - min + 1)).toLong()
     }
+
+    // Faqat log uchun qisqa yordamchi
+    private fun contact(phone: String) = phone
 }

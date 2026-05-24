@@ -1,21 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Asosiy tema — Material3 Design asosida -->
     <style name="Theme.SmsManager" parent="Theme.Material3.Light.NoActionBar">
-        <!-- Asosiy rang -->
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_dark</item>
         <item name="colorOnPrimary">@color/white</item>
-
-        <!-- Ikkinchi darajali rang -->
         <item name="colorSecondary">@color/success</item>
         <item name="colorOnSecondary">@color/white</item>
-
-        <!-- Fon -->
         <item name="android:colorBackground">@color/background</item>
-        <item name="colorSurface">@color/white</item>
-
-        <!-- Status bar rangi -->
+        <item name="colorSurface">@color/surface</item>
         <item name="android:statusBarColor">@color/primary_dark</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <!-- Karta uslubi -->
+    <style name="CardStyle" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">2dp</item>
+        <item name="strokeWidth">0dp</item>
+    </style>
+
+    <!-- Bo'lim sarlavhasi -->
+    <style name="SectionTitle">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">@color/primary</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+
+    <!-- Asosiy tugma -->
+    <style name="PrimaryButton" parent="Widget.Material3.Button">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="android:paddingTop">14dp</item>
+        <item name="android:paddingBottom">14dp</item>
+    </style>
+
+    <!-- Ikkinchi darajali tugma -->
+    <style name="OutlinedButton" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:textSize">14sp</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
+        <item name="strokeColor">@color/primary</item>
+        <item name="android:textColor">@color/primary</item>
     </style>
 </resources>

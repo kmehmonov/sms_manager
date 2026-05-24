@@ -1,8 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Asosiy ekran layouti.
-    CoordinatorLayout — Material dizayn komponetlari uchun asosiy container.
--->
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -12,22 +8,47 @@
     android:background="@color/background"
     tools:context=".MainActivity">
 
-    <!-- Yuqori panel (toolbar) -->
+    <!-- ══════════════════════════════════════════════
+         YUQORI PANEL
+         ══════════════════════════════════════════════ -->
     <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:background="@color/primary"
+        app:elevation="0dp">
 
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/toolbar"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            android:background="@color/primary"
-            app:title="@string/app_name"
-            app:titleTextColor="@color/white" />
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="20dp">
 
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/app_name"
+                android:textColor="@color/white"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/app_subtitle"
+                android:textColor="#B3DAFE"
+                android:textSize="13sp" />
+
+        </LinearLayout>
     </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- Asosiy kontent maydoni -->
+    <!-- ══════════════════════════════════════════════
+         ASOSIY KONTENT
+         ══════════════════════════════════════════════ -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -39,189 +60,457 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- ═══════════════════════════════════════
-                 1-BLOK: CSV FAYL TANLASH
-                 ═══════════════════════════════════════ -->
+            <!-- ── 1. CSV FAYL KARTASI ─────────────────── -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="12dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp">
+                style="@style/CardStyle">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="18dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
+                    <!-- Bo'lim sarlavhasi -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/section_file"
-                        android:textColor="@color/primary"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="12dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="14dp">
 
-                    <!-- CSV fayl tanlash tugmasi -->
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/primary"
+                            android:layout_marginEnd="10dp" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/section_file"
+                            style="@style/SectionTitle" />
+
+                    </LinearLayout>
+
+                    <!-- Fayl tanlash tugmasi -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnSelectFile"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/btn_select_file"
-                        android:textSize="15sp"
+                        style="@style/OutlinedButton"
                         app:icon="@android:drawable/ic_menu_agenda"
                         app:iconGravity="textStart"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        app:strokeColor="@color/primary"
-                        android:textColor="@color/primary" />
+                        app:iconSize="18dp" />
 
-                    <!-- Tanlangan fayl nomi -->
-                    <TextView
-                        android:id="@+id/tvFileName"
+                    <!-- Tanlangan fayl ma'lumoti (bosiladigan) -->
+                    <LinearLayout
+                        android:id="@+id/layoutFileInfo"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="@string/no_file_selected"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp" />
+                        android:orientation="horizontal"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/bg_file_info"
+                        android:padding="12dp"
+                        android:gravity="center_vertical"
+                        android:visibility="gone"
+                        tools:visibility="visible">
 
-                    <!-- O'qilgan raqamlar soni -->
-                    <TextView
-                        android:id="@+id/tvContactCount"
-                        android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/tvFileName"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textColor="@color/text_primary"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:maxLines="1"
+                                android:ellipsize="end"
+                                tools:text="contacts.csv" />
+
+                            <TextView
+                                android:id="@+id/tvContactCount"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:textColor="@color/success"
+                                android:textSize="12sp"
+                                tools:text="120 ta raqam" />
+
+                        </LinearLayout>
+
+                        <!-- Ko'rish tugmasi -->
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnPreviewCsv"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/btn_preview"
+                            android:textSize="12sp"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:textColor="@color/primary" />
+
+                    </LinearLayout>
+
+                    <!-- Fayl tanlanmagan holat -->
+                    <LinearLayout
+                        android:id="@+id/layoutNoFile"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text=""
-                        android:textColor="@color/success"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
+                        android:orientation="horizontal"
+                        android:layout_marginTop="10dp"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/no_file_selected"
+                            android:textColor="@color/text_hint"
+                            android:textSize="13sp" />
+
+                    </LinearLayout>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- ═══════════════════════════════════════
-                 2-BLOK: SOZLAMALAR
-                 ═══════════════════════════════════════ -->
+            <!-- ── 2. SOZLAMALAR KARTASI ───────────────── -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="12dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp">
+                style="@style/CardStyle">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="18dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
+                    <!-- Bo'lim sarlavhasi -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/section_settings"
-                        android:textColor="@color/primary"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="8dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="14dp">
 
-                    <!-- Sarlavha qatorini o'tkazib yuborish (checkbox) -->
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/primary"
+                            android:layout_marginEnd="10dp" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/section_settings"
+                            style="@style/SectionTitle" />
+
+                    </LinearLayout>
+
+                    <!-- Sarlavha checkbox -->
                     <com.google.android.material.checkbox.MaterialCheckBox
                         android:id="@+id/checkSkipHeader"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:checked="true"
                         android:text="@string/skip_header"
-                        android:textSize="14sp" />
+                        android:textSize="14sp"
+                        android:textColor="@color/text_primary"
+                        android:layout_marginBottom="16dp" />
+
+                    <!-- Divider -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/divider"
+                        android:layout_marginBottom="16dp" />
+
+                    <!-- Kutish vaqti sarlavhasi -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/section_delay"
+                        style="@style/SectionTitle"
+                        android:layout_marginBottom="12dp" />
+
+                    <!-- Min / Max delay inputlar -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <!-- Min delay -->
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tilMinDelay"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="8dp"
+                            android:hint="@string/delay_min_label"
+                            app:suffixText="@string/delay_suffix"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                            app:boxCornerRadiusTopStart="10dp"
+                            app:boxCornerRadiusTopEnd="10dp"
+                            app:boxCornerRadiusBottomStart="10dp"
+                            app:boxCornerRadiusBottomEnd="10dp">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etMinDelay"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number"
+                                android:text="4"
+                                android:textSize="16sp"
+                                android:textStyle="bold" />
+
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <!-- Max delay -->
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tilMaxDelay"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:hint="@string/delay_max_label"
+                            app:suffixText="@string/delay_suffix"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                            app:boxCornerRadiusTopStart="10dp"
+                            app:boxCornerRadiusTopEnd="10dp"
+                            app:boxCornerRadiusBottomStart="10dp"
+                            app:boxCornerRadiusBottomEnd="10dp">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etMaxDelay"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number"
+                                android:text="6"
+                                android:textSize="16sp"
+                                android:textStyle="bold" />
+
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                    </LinearLayout>
+
+                    <!-- Batch tanaffus haqida ma'lumot -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/batch_pause_info"
+                        android:textColor="@color/text_hint"
+                        android:textSize="12sp"
+                        android:drawablePadding="6dp"
+                        app:drawableStartCompat="@android:drawable/ic_dialog_info" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- ═══════════════════════════════════════
-                 3-BLOK: BOSHQARUV TUGMALARI
-                 ═══════════════════════════════════════ -->
+            <!-- ── 3. BOSHQARUV TUGMALARI ─────────────── -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:layout_marginBottom="12dp">
 
-                <!-- Yuborishni boshlash tugmasi -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnStart"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="56dp"
                     android:layout_weight="1"
                     android:layout_marginEnd="8dp"
                     android:enabled="false"
                     android:text="@string/btn_start"
-                    android:textSize="15sp"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    style="@style/PrimaryButton"
+                    android:backgroundTint="@color/success"
                     app:icon="@android:drawable/ic_media_play"
-                    app:iconGravity="textStart"
-                    android:backgroundTint="@color/success" />
+                    app:iconSize="18dp"
+                    app:iconGravity="textStart" />
 
-                <!-- To'xtatish tugmasi -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnStop"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="56dp"
                     android:layout_weight="1"
                     android:enabled="false"
                     android:text="@string/btn_stop"
-                    android:textSize="15sp"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    style="@style/PrimaryButton"
+                    android:backgroundTint="@color/error"
                     app:icon="@android:drawable/ic_media_pause"
-                    app:iconGravity="textStart"
-                    android:backgroundTint="@color/error" />
+                    app:iconSize="18dp"
+                    app:iconGravity="textStart" />
 
             </LinearLayout>
 
-            <!-- ═══════════════════════════════════════
-                 4-BLOK: PROGRESS VA HOLAT
-                 ═══════════════════════════════════════ -->
+            <!-- ── 4. STATISTIKA QATORI ───────────────── -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="12dp">
+
+                <!-- Yuborildi -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    style="@style/CardStyle"
+                    app:cardBackgroundColor="@color/success_light">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="12dp"
+                        android:gravity="center">
+                        <TextView
+                            android:id="@+id/tvStatSent"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textColor="@color/success"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Yuborildi"
+                            android:textColor="@color/success"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Xato -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    style="@style/CardStyle"
+                    app:cardBackgroundColor="@color/error_light">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="12dp"
+                        android:gravity="center">
+                        <TextView
+                            android:id="@+id/tvStatFailed"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textColor="@color/error"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Xato"
+                            android:textColor="@color/error"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Jami -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    style="@style/CardStyle"
+                    app:cardBackgroundColor="@color/primary_light">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="12dp"
+                        android:gravity="center">
+                        <TextView
+                            android:id="@+id/tvStatTotal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textColor="@color/primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Jami"
+                            android:textColor="@color/primary"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+            </LinearLayout>
+
+            <!-- ── 5. PROGRESS KARTASI ────────────────── -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="12dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp">
+                style="@style/CardStyle">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="18dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/section_progress"
-                        android:textColor="@color/primary"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="8dp" />
-
-                    <!-- Progress matni: "45 / 120 yuborildi" -->
-                    <TextView
-                        android:id="@+id/tvProgress"
+                    <!-- Progress foizi va raqami -->
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/progress_idle"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:gravity="center"
-                        android:layout_marginBottom="8dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="10dp">
+
+                        <TextView
+                            android:id="@+id/tvProgress"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/progress_idle"
+                            android:textColor="@color/text_primary"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvProgressPercent"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0%"
+                            android:textColor="@color/primary"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
 
                     <!-- Progress bar -->
                     <com.google.android.material.progressindicator.LinearProgressIndicator
                         android:id="@+id/progressBar"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="8dp"
-                        app:trackCornerRadius="4dp"
-                        app:indicatorColor="@color/primary" />
+                        android:layout_marginBottom="10dp"
+                        app:trackCornerRadius="6dp"
+                        app:trackThickness="8dp"
+                        app:indicatorColor="@color/primary"
+                        app:trackColor="@color/primary_light" />
 
-                    <!-- Joriy holat matni -->
+                    <!-- Joriy holat xabari -->
                     <TextView
                         android:id="@+id/tvCurrentStatus"
                         android:layout_width="match_parent"
@@ -229,63 +518,76 @@
                         android:text=""
                         android:textColor="@color/text_secondary"
                         android:textSize="12sp"
-                        android:gravity="center" />
+                        android:maxLines="2"
+                        android:ellipsize="end" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- ═══════════════════════════════════════
-                 5-BLOK: JONLI LOG RO'YXATI
-                 ═══════════════════════════════════════ -->
+            <!-- ── 6. LOG KARTASI ─────────────────────── -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp">
+                style="@style/CardStyle">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
+                    android:orientation="vertical">
 
+                    <!-- Log sarlavhasi + tozalash tugmasi -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
-                        android:layout_marginBottom="8dp">
+                        android:gravity="center_vertical"
+                        android:paddingStart="18dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="14dp"
+                        android:paddingBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/primary"
+                            android:layout_marginEnd="10dp" />
 
                         <TextView
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="@string/section_log"
-                            android:textColor="@color/primary"
-                            android:textSize="14sp"
-                            android:textStyle="bold" />
+                            style="@style/SectionTitle" />
 
-                        <!-- Log'ni tozalash tugmasi -->
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnClearLog"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/btn_clear"
                             android:textSize="12sp"
-                            style="@style/Widget.Material3.Button.TextButton" />
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:textColor="@color/text_secondary" />
 
                     </LinearLayout>
 
-                    <!-- SMS log ro'yxati (RecyclerView) -->
+                    <!-- Log RV — o'zida scroll bor -->
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/recyclerLog"
                         android:layout_width="match_parent"
-                        android:layout_height="400dp"
+                        android:layout_height="420dp"
                         android:nestedScrollingEnabled="true"
+                        android:clipToPadding="false"
+                        android:paddingBottom="8dp"
                         tools:itemCount="5"
                         tools:listitem="@layout/item_log" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
+
+            <!-- Pastki bo'sh joy -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="16dp" />
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

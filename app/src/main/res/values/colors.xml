@@ -1,29 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Asosiy ranglar -->
-    <color name="primary">#1565C0</color>
-    <color name="primary_dark">#0D47A1</color>
-    <color name="primary_light">#E3F2FD</color>
+    <!-- ── Asosiy rang sistemi ─────────────────────── -->
+    <color name="primary">#2563EB</color>
+    <color name="primary_dark">#1D4ED8</color>
+    <color name="primary_light">#DBEAFE</color>
+    <color name="primary_extra_light">#EFF6FF</color>
 
-    <!-- Holat ranglari -->
-    <color name="success">#2E7D32</color>
-    <color name="error">#C62828</color>
-    <color name="warning">#F57F17</color>
-    <color name="pending">#757575</color>
+    <!-- ── Holat ranglari ────────────────────────────── -->
+    <color name="success">#059669</color>
+    <color name="success_light">#D1FAE5</color>
+    <color name="error">#DC2626</color>
+    <color name="error_light">#FEE2E2</color>
+    <color name="warning">#D97706</color>
+    <color name="warning_light">#FEF3C7</color>
+    <color name="pending">#6B7280</color>
+    <color name="pending_light">#F3F4F6</color>
+    <color name="sending">#7C3AED</color>
+    <color name="sending_light">#EDE9FE</color>
 
-    <!-- Matn ranglari -->
-    <color name="text_primary">#212121</color>
-    <color name="text_secondary">#757575</color>
+    <!-- ── Matn ranglari ─────────────────────────────── -->
+    <color name="text_primary">#111827</color>
+    <color name="text_secondary">#6B7280</color>
+    <color name="text_hint">#9CA3AF</color>
     <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
 
-    <!-- Fon rangi -->
-    <color name="background">#F5F5F5</color>
+    <!-- ── Fon va karta ranglari ──────────────────────── -->
+    <color name="background">#F1F5F9</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="divider">#E5E7EB</color>
 
-    <!-- Material theme ranglari -->
+    <!-- ── Material tema uchun ───────────────────────── -->
     <color name="purple_200">#FFBB86FC</color>
     <color name="purple_500">#FF6200EE</color>
     <color name="purple_700">#FF3700B3</color>
     <color name="teal_200">#FF03DAC5</color>
     <color name="teal_700">#FF018786</color>
-    <color name="black">#FF000000</color>
 </resources>
