@@ -21,33 +21,16 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Gradle distributivini yuklab, to'g'ri wrapper yaratish
-        run: |
-          # Gradle 8.7 ni yuklab olamiz
-          wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip -O /tmp/gradle.zip
-          unzip -q /tmp/gradle.zip -d /tmp/gradle-dist
-          GRADLE_BIN="/tmp/gradle-dist/gradle-8.7/bin/gradle"
-          chmod +x "$GRADLE_BIN"
-
-          # Haqiqiy gradle-wrapper.jar bilan to'g'ri wrapper yaratamiz
-          "$GRADLE_BIN" wrapper --gradle-version 8.7 --distribution-type bin
-          chmod +x gradlew
-
-          echo "✓ Wrapper yaratildi:"
-          ls -lh gradle/wrapper/gradle-wrapper.jar
-
-      - name: Gradle cache
-        uses: actions/cache@v4
+      # Gradle rasmiy GitHub Action — wrapper kerak emas, to'g'ridan Gradle ishlatadi
+      - name: Gradle 8.7 o'rnatish
+        uses: gradle/actions/setup-gradle@v4
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+          gradle-version: "8.7"
 
+      # gradlew emas, to'g'ridan "gradle" buyrug'i bilan build qilamiz
       - name: Debug APK build
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        run: gradle assembleDebug --no-daemon --stacktrace
+        working-directory: ${{ github.workspace }}
 
       - name: APK ni saqlash
         uses: actions/upload-artifact@v4
@@ -60,9 +43,8 @@ jobs:
         run: |
           APK="app/build/outputs/apk/debug/app-debug.apk"
           if [ -f "$APK" ]; then
-            echo "✅ APK muvaffaqiyatli yaratildi!"
-            ls -lh "$APK"
+            echo "✅ APK muvaffaqiyatli yaratildi! Hajmi: $(du -sh $APK | cut -f1)"
           else
-            echo "❌ APK yaratilmadi"
+            echo "❌ APK topilmadi"
             exit 1
           fi
