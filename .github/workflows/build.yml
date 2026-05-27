@@ -81,7 +81,6 @@ jobs:
           gh release create latest \
             --title "SMS Manager (Build ${BUILD})" \
             --notes "${BODY}" \
-            --prerelease \
             "app/build/outputs/apk/debug/sms-manager.apk#sms-manager.apk"
 
           echo "✅ Release yaratildi: Build ${BUILD}"
