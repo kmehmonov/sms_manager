@@ -118,6 +118,67 @@ object CsvParser {
     }
 
     /**
+     * Shablon matnidan {{o'zgaruvchi}} nomlarini ajratib oladi.
+     * Misol: "Salom {{ism}}, balingiz {{ball}}" → ["ism", "ball"]
+     */
+    fun extractTemplateVars(template: String): List<String> =
+        Regex("\\{\\{(\\w+)\\}\\}")
+            .findAll(template)
+            .map { it.groupValues[1] }
+            .distinct()
+            .toList()
+
+    /**
+     * CSV faylni shablon asosida parse qiladi.
+     * Har bir qator uchun shablondagi {{key}} lar mos ustun qiymatlari bilan almashtiriladi.
+     *
+     * @param varMappings  O'zgaruvchi nomi → ustun indeksi (0 dan boshlanadi)
+     */
+    fun parseWithTemplate(
+        context: Context,
+        uri: Uri,
+        skipHeader: Boolean,
+        phoneColIndex: Int,
+        template: String,
+        varMappings: Map<String, Int>
+    ): List<SmsContact> {
+        val contacts = mutableListOf<SmsContact>()
+
+        try {
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                val reader = inputStream.bufferedReader(Charsets.UTF_8)
+                var lineNumber = 0
+                var contactIndex = 1
+
+                reader.forEachLine { line ->
+                    lineNumber++
+                    if (skipHeader && lineNumber == 1) { return@forEachLine }
+                    if (line.isBlank()) return@forEachLine
+
+                    val parsed = parseCsvLine(line)
+                    if (parsed.size <= phoneColIndex) return@forEachLine
+
+                    val phone = parsed[phoneColIndex].trim()
+                    if (phone.isEmpty()) return@forEachLine
+
+                    var message = template
+                    for ((varName, colIdx) in varMappings) {
+                        message = message.replace("{{$varName}}", parsed.getOrNull(colIdx)?.trim() ?: "")
+                    }
+
+                    contacts.add(SmsContact(index = contactIndex++, phoneNumber = phone, message = message))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Template parse xato: ${e.message}", e)
+            throw e
+        }
+
+        Log.d(TAG, "Template bilan o'qildi: ${contacts.size} ta kontakt")
+        return contacts
+    }
+
+    /**
      * @deprecated parseWithMapping() ishlatilsin.
      * Birinchi ustun telefon, ikkinchisi xabar deb qabul qiladi.
      */

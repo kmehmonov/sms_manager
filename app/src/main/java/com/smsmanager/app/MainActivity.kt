@@ -13,9 +13,16 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.OpenableColumns
 import android.provider.Settings
+import android.telephony.SubscriptionManager
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.Gravity
 import android.view.View
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
+import android.widget.LinearLayout
+import android.widget.Spinner
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -35,17 +42,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/**
- * Asosiy Activity.
- *
- * Vazifalar:
- * - SMS ruxsatini boshqarish
- * - CSV fayl tanlash va preview ko'rsatish
- * - Delay sozlamalarini o'qish
- * - ViewModel bilan bog'liq UI yangilashlari
- * - Log elementlariga bosish — tafsilot dialog
- * - In-app yangilanish: GitHub Release tekshirish → yuklab olish → o'rnatish
- */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -54,6 +50,13 @@ class MainActivity : AppCompatActivity() {
 
     private var contacts: List<SmsContact> = emptyList()
     private var selectedUri: Uri? = null
+
+    // SIM karta
+    private var simSubscriptionIds: List<Int?> = listOf(null)
+    private var selectedSimSubscriptionId: Int? = null
+
+    // Statistika dialogi uchun — oldingi holat trakkeri
+    private var wasSendingRunning = false
 
     // Yangilanish yuklab olish uchun DownloadManager ID
     private var downloadId: Long = -1L
@@ -78,7 +81,6 @@ class MainActivity : AppCompatActivity() {
     private val requestInstallPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
-        // Sozlamalardan qaytgach — agar ruxsat berilgan bo'lsa, yuklab olishni boshlaymiz
         val url = pendingDownloadUrl
         if (url != null && canInstallPackages()) {
             pendingDownloadUrl = null
@@ -106,14 +108,13 @@ class MainActivity : AppCompatActivity() {
         setupRecyclerView()
         setupClickListeners()
         observeViewModel()
+        detectSimCards()
 
-        // Ilova ochilganda — yangilanishni tekshiramiz
         checkForUpdates()
     }
 
     override fun onResume() {
         super.onResume()
-        // DownloadManager broadcast'ini ro'yxatga olamiz
         val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(downloadReceiver, filter, RECEIVER_NOT_EXPORTED)
@@ -143,12 +144,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupClickListeners() {
-        // Fayl tanlash
         binding.btnSelectFile.setOnClickListener {
             filePickerLauncher.launch("*/*")
         }
 
-        // Fayl info kartasiga bosish — CSV preview
         binding.layoutFileInfo.setOnClickListener {
             selectedUri?.let { showCsvPreviewDialog() }
         }
@@ -156,24 +155,22 @@ class MainActivity : AppCompatActivity() {
             selectedUri?.let { showCsvPreviewDialog() }
         }
 
-        // Yuborishni boshlash
         binding.btnStart.setOnClickListener { onStartClicked() }
-
-        // To'xtatish
         binding.btnStop.setOnClickListener { onStopClicked() }
-
-        // Log tozalash
         binding.btnClearLog.setOnClickListener { viewModel.clearLog() }
 
-        // Yangilash tugmasi — banner ko'rinsa ishlatiladi
         binding.btnUpdate.setOnClickListener {
             val url = binding.btnUpdate.tag as? String
             if (url != null) downloadAndInstall(url)
         }
+
+        // SIM spinner
+        binding.spinnerSim.setOnItemClickListener { _, _, position, _ ->
+            selectedSimSubscriptionId = simSubscriptionIds.getOrNull(position)
+        }
     }
 
     private fun observeViewModel() {
-        // Log ro'yxati
         viewModel.logEntries.observe(this) { entries ->
             logAdapter.submitList(entries.toList()) {
                 if (entries.isNotEmpty())
@@ -181,19 +178,69 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Yuborish holati
         viewModel.sendingState.observe(this) { state ->
             updateProgressUI(state)
             updateButtonStates(state.isRunning)
+
+            // Yuborish tugaganda (foydalanuvchi to'xtatmagan bo'lsa) statistika dialogi
+            if (wasSendingRunning && !state.isRunning && state.total > 0 && !state.stoppedByUser) {
+                showSendingStatsDialog(state)
+            }
+            wasSendingRunning = state.isRunning
         }
 
-        // Xato xabarlari
         viewModel.errorEvent.observe(this) { error ->
             if (error != null) {
                 showToast(error)
                 viewModel.onErrorShown()
             }
         }
+    }
+
+    // ─── SIM karta aniqlash ────────────────────────────────────────────────────
+
+    private fun detectSimCards() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            binding.layoutSimSelector.visibility = View.GONE
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE)
+            != PackageManager.PERMISSION_GRANTED) {
+            binding.layoutSimSelector.visibility = View.GONE
+            return
+        }
+
+        val subscriptionManager = getSystemService(SubscriptionManager::class.java) ?: run {
+            binding.layoutSimSelector.visibility = View.GONE
+            return
+        }
+
+        val sims = try {
+            subscriptionManager.activeSubscriptionInfoList
+        } catch (_: Exception) {
+            null
+        }
+
+        if (sims == null || sims.size <= 1) {
+            binding.layoutSimSelector.visibility = View.GONE
+            simSubscriptionIds = listOf(null)
+            return
+        }
+
+        // 2+ SIM karta topildi — spinnerini ko'rsatamiz
+        binding.layoutSimSelector.visibility = View.VISIBLE
+
+        simSubscriptionIds = listOf(null) + sims.map { it.subscriptionId }
+        val labels = listOf("Standart (avtomatik)") + sims.map { sim ->
+            val name = sim.displayName?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+                ?: "SIM ${sim.simSlotIndex + 1}"
+            "SIM ${sim.simSlotIndex + 1} ($name)"
+        }
+
+        val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, labels)
+        binding.spinnerSim.setAdapter(adapter)
+        binding.spinnerSim.setText(labels[0], false)
+        selectedSimSubscriptionId = null
     }
 
     // ─── Progress UI yangilash ─────────────────────────────────────────────────
@@ -221,12 +268,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateButtonStates(isRunning: Boolean) {
-        binding.btnStart.isEnabled       = !isRunning && contacts.isNotEmpty()
-        binding.btnStop.isEnabled        = isRunning
-        binding.btnSelectFile.isEnabled  = !isRunning
+        binding.btnStart.isEnabled        = !isRunning && contacts.isNotEmpty()
+        binding.btnStop.isEnabled         = isRunning
+        binding.btnSelectFile.isEnabled   = !isRunning
         binding.checkSkipHeader.isEnabled = !isRunning
-        binding.etMinDelay.isEnabled     = !isRunning
-        binding.etMaxDelay.isEnabled     = !isRunning
+        binding.etMinDelay.isEnabled      = !isRunning
+        binding.etMaxDelay.isEnabled      = !isRunning
+        binding.spinnerSim.isEnabled      = !isRunning
+    }
+
+    // ─── Yuborish statistikasi dialogi ────────────────────────────────────────
+
+    private fun showSendingStatsDialog(state: SendingState) {
+        val message = "Jami:       ${state.total}\n" +
+                      "Yuborildi:  ✅ ${state.sent}\n" +
+                      "Xato:       ❌ ${state.failed}"
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Yuborish yakunlandi!")
+            .setMessage(message)
+            .setPositiveButton("OK", null)
+            .show()
     }
 
     // ─── Fayl tanlash ──────────────────────────────────────────────────────────
@@ -253,13 +315,11 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * CSV ustunlarini tanlash uchun mapping dialogi.
-     * rawRows — CSV ning birinchi bir nechta qatorlari (xom holda).
      */
     private fun showColumnMappingDialog(uri: Uri, rawRows: List<List<String>>) {
         val skipHeader = binding.checkSkipHeader.isChecked
         val columnCount = rawRows.maxOf { it.size }
 
-        // Ustun nomlarini quramiz
         val headerRow = if (skipHeader && rawRows.isNotEmpty()) rawRows[0] else null
         val columnLabels = (0 until columnCount).map { i ->
             val name = headerRow?.getOrNull(i)?.trim()?.takeIf { it.isNotEmpty() }
@@ -270,10 +330,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Preview matnini quramiz — birinchi 4 qator
         val previewText = buildString {
-            val previewRows = rawRows.take(4)
-            previewRows.forEachIndexed { rowIdx, row ->
+            rawRows.take(4).forEachIndexed { rowIdx, row ->
                 if (skipHeader && rowIdx == 0) append("[Sarlavha] ")
                 row.forEachIndexed { colIdx, cell ->
                     append("[${colIdx + 1}] ")
@@ -287,29 +345,49 @@ class MainActivity : AppCompatActivity() {
         val dialogBinding = DialogColumnMappingBinding.inflate(layoutInflater)
         dialogBinding.tvMappingPreview.text = previewText
 
-        // Dropdown adapter
+        // Phone dropdown
         val dropdownAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, columnLabels)
-        val spinnerPhone   = dialogBinding.spinnerPhoneColumn
-        val spinnerMessage = dialogBinding.spinnerMessageColumn
+        dialogBinding.spinnerPhoneColumn.setAdapter(dropdownAdapter)
 
-        spinnerPhone.setAdapter(dropdownAdapter)
-        spinnerMessage.setAdapter(dropdownAdapter)
-
-        // Standart tanlov: 0 — telefon, 1 — xabar (agar 2+ ustun bo'lsa)
-        var phoneColIndex   = 0
+        var phoneColIndex = 0
         var messageColIndex = if (columnCount > 1) 1 else 0
 
-        spinnerPhone.setText(columnLabels.getOrNull(phoneColIndex) ?: "", false)
-        spinnerMessage.setText(columnLabels.getOrNull(messageColIndex) ?: "", false)
-
-        spinnerPhone.setOnItemClickListener { _, _, position, _ ->
+        dialogBinding.spinnerPhoneColumn.setText(columnLabels.getOrNull(phoneColIndex) ?: "", false)
+        dialogBinding.spinnerPhoneColumn.setOnItemClickListener { _, _, position, _ ->
             phoneColIndex = position
             dialogBinding.tilPhoneColumn.error = null
         }
-        spinnerMessage.setOnItemClickListener { _, _, position, _ ->
+
+        // Message dropdown (CSV rejimi)
+        dialogBinding.spinnerMessageColumn.setAdapter(
+            ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, columnLabels)
+        )
+        dialogBinding.spinnerMessageColumn.setText(columnLabels.getOrNull(messageColIndex) ?: "", false)
+        dialogBinding.spinnerMessageColumn.setOnItemClickListener { _, _, position, _ ->
             messageColIndex = position
-            dialogBinding.tilPhoneColumn.error = null
         }
+
+        // Template rejimi
+        var isTemplateMode = false
+        val varMappingIndices = mutableMapOf<String, Int>()
+
+        dialogBinding.rgMessageSource.setOnCheckedChangeListener { _, checkedId ->
+            isTemplateMode = (checkedId == R.id.rbTemplate)
+            dialogBinding.tilMessageColumn.visibility = if (isTemplateMode) View.GONE else View.VISIBLE
+            dialogBinding.layoutTemplateSection.visibility = if (isTemplateMode) View.VISIBLE else View.GONE
+        }
+
+        dialogBinding.etTemplate.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val template = s?.toString() ?: ""
+                val varNames = CsvParser.extractTemplateVars(template)
+                dialogBinding.tvVarMappingLabel.visibility =
+                    if (varNames.isNotEmpty()) View.VISIBLE else View.GONE
+                rebuildVarMappings(dialogBinding.layoutVarMappings, varNames, columnLabels, varMappingIndices)
+            }
+        })
 
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle("Ustun moslash (Mapping)")
@@ -320,20 +398,85 @@ class MainActivity : AppCompatActivity() {
 
         dialog.show()
 
-        // Positive tugma — validatsiya bilan
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            if (phoneColIndex == messageColIndex) {
-                dialogBinding.tilPhoneColumn.error = "Telefon va xabar ustunlari farqli bo'lishi kerak"
-                return@setOnClickListener
+            if (isTemplateMode) {
+                val template = dialogBinding.etTemplate.text?.toString()?.trim() ?: ""
+                if (template.isEmpty()) {
+                    dialogBinding.tilTemplate.error = "Shablon bo'sh bo'lishi mumkin emas"
+                    return@setOnClickListener
+                }
+                dialogBinding.tilTemplate.error = null
+                dialog.dismiss()
+                applyTemplateAndLoad(uri, skipHeader, phoneColIndex, template, varMappingIndices.toMap())
+            } else {
+                if (phoneColIndex == messageColIndex) {
+                    dialogBinding.tilPhoneColumn.error = "Telefon va xabar ustunlari farqli bo'lishi kerak"
+                    return@setOnClickListener
+                }
+                dialogBinding.tilPhoneColumn.error = null
+                dialog.dismiss()
+                applyMappingAndLoad(uri, skipHeader, phoneColIndex, messageColIndex)
             }
-            dialogBinding.tilPhoneColumn.error = null
-            dialog.dismiss()
-            applyMappingAndLoad(uri, skipHeader, phoneColIndex, messageColIndex)
         }
     }
 
     /**
-     * Mapping tasdiqlangandan so'ng CSV ni parse qilib kontaktlarni yuklaydi.
+     * Shablon o'zgaruvchilari uchun ustun moslash spinnerlarini qayta quradi.
+     */
+    private fun rebuildVarMappings(
+        container: LinearLayout,
+        varNames: List<String>,
+        columnLabels: List<String>,
+        varMappingIndices: MutableMap<String, Int>
+    ) {
+        container.removeAllViews()
+        val density = resources.displayMetrics.density
+        val pad8 = (8 * density).toInt()
+
+        varNames.forEach { varName ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also { lp -> lp.setMargins(0, 0, 0, pad8) }
+            }
+
+            val label = android.widget.TextView(this).apply {
+                text = "{{$varName}} →"
+                textSize = 13f
+                setPadding(0, 0, pad8, 0)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val spinner = Spinner(this).apply {
+                adapter = ArrayAdapter(
+                    this@MainActivity,
+                    android.R.layout.simple_spinner_dropdown_item,
+                    columnLabels
+                )
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                val savedIndex = varMappingIndices[varName] ?: 0
+                setSelection(savedIndex.coerceIn(0, columnLabels.size - 1))
+                onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(
+                        parent: AdapterView<*>?, view: View?, position: Int, id: Long
+                    ) { varMappingIndices[varName] = position }
+                    override fun onNothingSelected(parent: AdapterView<*>?) {}
+                }
+            }
+
+            if (!varMappingIndices.containsKey(varName)) varMappingIndices[varName] = 0
+
+            row.addView(label)
+            row.addView(spinner)
+            container.addView(row)
+        }
+    }
+
+    /**
+     * CSV rejimida mapping tasdiqlangandan so'ng CSV ni yuklaydi.
      */
     private fun applyMappingAndLoad(
         uri: Uri,
@@ -345,6 +488,43 @@ class MainActivity : AppCompatActivity() {
             try {
                 val loaded = withContext(Dispatchers.IO) {
                     CsvParser.parseWithMapping(this@MainActivity, uri, skipHeader, phoneColIndex, messageColIndex)
+                }
+                val fileName = getFileName(uri)
+                if (loaded.isEmpty()) {
+                    showToast(getString(R.string.error_empty_file))
+                    showNoFileState()
+                } else {
+                    contacts = loaded
+                    binding.tvFileName.text     = fileName
+                    binding.tvContactCount.text = "${contacts.size} ta raqam topildi"
+                    binding.layoutFileInfo.visibility = View.VISIBLE
+                    binding.layoutNoFile.visibility   = View.GONE
+                    binding.btnStart.isEnabled = true
+                    showToast("${contacts.size} ta kontakt yuklandi ✓")
+                }
+            } catch (e: Exception) {
+                showToast("Fayl o'qishda xato: ${e.message}")
+                showNoFileState()
+            }
+        }
+    }
+
+    /**
+     * Shablon rejimida tasdiqlangandan so'ng CSV ni yuklaydi.
+     */
+    private fun applyTemplateAndLoad(
+        uri: Uri,
+        skipHeader: Boolean,
+        phoneColIndex: Int,
+        template: String,
+        varMappings: Map<String, Int>
+    ) {
+        lifecycleScope.launch {
+            try {
+                val loaded = withContext(Dispatchers.IO) {
+                    CsvParser.parseWithTemplate(
+                        this@MainActivity, uri, skipHeader, phoneColIndex, template, varMappings
+                    )
                 }
                 val fileName = getFileName(uri)
                 if (loaded.isEmpty()) {
@@ -444,9 +624,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Delay qiymatlarini tekshirib, yuborishni boshlaydi.
-     */
     private fun startSendingIfReady() {
         if (contacts.isEmpty()) { showToast(getString(R.string.error_no_file)); return }
 
@@ -473,7 +650,7 @@ class MainActivity : AppCompatActivity() {
                 "Davom etasizmi?"
             )
             .setPositiveButton("Ha, boshlash") { _, _ ->
-                viewModel.startSending(contacts, minMs, maxMs)
+                viewModel.startSending(contacts, minMs, maxMs, selectedSimSubscriptionId)
             }
             .setNegativeButton("Bekor", null)
             .show()
@@ -507,10 +684,6 @@ class MainActivity : AppCompatActivity() {
 
     // ─── Yangilanish logikasi ──────────────────────────────────────────────────
 
-    /**
-     * Ilova ochilganda GitHub'dan yangi versiyani tekshiradi.
-     * Fon rejimida ishlaydi — UI'ni blokirovka qilmaydi.
-     */
     private fun checkForUpdates() {
         lifecycleScope.launch {
             val currentCode = getInstalledVersionCode()
@@ -521,7 +694,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** O'rnatilgan APK ning versionCode raqamini qaytaradi. */
     @Suppress("DEPRECATION")
     private fun getInstalledVersionCode(): Int {
         return try {
@@ -529,17 +701,12 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) { 0 }
     }
 
-    /** Yangi versiya topilganda yuqori bannerda ko'rsatadi. */
     private fun showUpdateBanner(updateInfo: UpdateInfo) {
         binding.tvUpdateTitle.text = "🆕 ${updateInfo.releaseTitle} — yangilash mavjud"
-        binding.btnUpdate.tag      = updateInfo.downloadUrl   // URLni saqlaymiz
+        binding.btnUpdate.tag      = updateInfo.downloadUrl
         binding.layoutUpdateBanner.visibility = View.VISIBLE
     }
 
-    /**
-     * Yuklab olishdan oldin REQUEST_INSTALL_PACKAGES ruxsatini tekshiradi.
-     * Android 8.0 (Oreo)+ da talab qilinadi.
-     */
     private fun downloadAndInstall(url: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !canInstallPackages()) {
             pendingDownloadUrl = url
@@ -567,11 +734,7 @@ class MainActivity : AppCompatActivity() {
         } else true
     }
 
-    /**
-     * DownloadManager orqali APK yuklab olishni boshlaydi.
-     */
     private fun startApkDownload(url: String) {
-        // Eski faylni tozalaymiz
         val outputFile = File(getExternalFilesDir(null), "sms-manager-update.apk")
         if (outputFile.exists()) outputFile.delete()
 
@@ -589,15 +752,11 @@ class MainActivity : AppCompatActivity() {
         val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
         downloadId = dm.enqueue(request)
 
-        // Tugma holatini yangilaymiz
         binding.btnUpdate.isEnabled = false
         binding.btnUpdate.text      = "Yuklanmoqda…"
         showToast("Yangilanish yuklab olinmoqda…")
     }
 
-    /**
-     * DownloadManager yuklab olishni tugatganda chaqiriladi.
-     */
     private fun onDownloadCompleted(id: Long) {
         val dm    = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
         val query = DownloadManager.Query().setFilterById(id)
@@ -626,9 +785,6 @@ class MainActivity : AppCompatActivity() {
         cursor.close()
     }
 
-    /**
-     * FileProvider orqali xavfsiz URI yaratib, APK o'rnatishni boshlaydi.
-     */
     private fun installApk(file: File) {
         val uri = FileProvider.getUriForFile(
             this,

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -51,7 +52,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Telefon raqam ustuni"
-        android:layout_marginBottom="12dp">
+        android:layout_marginBottom="16dp">
 
         <AutoCompleteTextView
             android:id="@+id/spinnerPhoneColumn"
@@ -63,7 +64,44 @@
 
     </com.google.android.material.textfield.TextInputLayout>
 
-    <!-- Xabar ustuni dropdown -->
+    <!-- Xabar manbai sarlavhasi -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Xabar manbai:"
+        android:textSize="13sp"
+        android:textColor="#374151"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <!-- CSV / Shablon tanlash -->
+    <RadioGroup
+        android:id="@+id/rgMessageSource"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp">
+
+        <RadioButton
+            android:id="@+id/rbCsvColumn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="CSV ustunidan"
+            android:checked="true"
+            android:textSize="14sp" />
+
+        <RadioButton
+            android:id="@+id/rbTemplate"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Shablon yozish"
+            android:textSize="14sp" />
+
+    </RadioGroup>
+
+    <!-- Xabar ustuni dropdown (CSV rejimi) -->
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/tilMessageColumn"
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
@@ -81,5 +119,56 @@
             android:paddingBottom="8dp" />
 
     </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Shablon bo'limi (dastlab yashirin) -->
+    <LinearLayout
+        android:id="@+id/layoutTemplateSection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- Shablon EditText -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilTemplate"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Masalan: Salom {{ism}}, balingiz: {{ball}}"
+            android:layout_marginBottom="12dp"
+            app:boxCornerRadiusTopStart="10dp"
+            app:boxCornerRadiusTopEnd="10dp"
+            app:boxCornerRadiusBottomStart="10dp"
+            app:boxCornerRadiusBottomEnd="10dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etTemplate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textMultiLine|textCapSentences"
+                android:minLines="3"
+                android:gravity="top|start" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- O'zgaruvchilar ustun moslash sarlavhasi -->
+        <TextView
+            android:id="@+id/tvVarMappingLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="O'zgaruvchilar → Ustunlar:"
+            android:textSize="12sp"
+            android:textColor="#6B7280"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone" />
+
+        <!-- O'zgaruvchilar moslash (dinamik ravishda qo'shiladi) -->
+        <LinearLayout
+            android:id="@+id/layoutVarMappings"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+    </LinearLayout>
 
 </LinearLayout>

@@ -39,7 +39,8 @@ data class SendingState(
     val sent: Int = 0,
     val failed: Int = 0,
     val total: Int = 0,
-    val currentMessage: String = ""
+    val currentMessage: String = "",
+    val stoppedByUser: Boolean = false
 )
 
 /**
@@ -68,6 +69,7 @@ class SmsViewModel(application: Application) : AndroidViewModel(application) {
     // ─── Ichki o'zgaruvchilar ──────────────────────────────────────────────────
     private var sendingJob: Job? = null
     private val currentEntries = mutableListOf<SmsLogEntry>()
+    @Volatile private var userStoppedSending = false
 
     /**
      * SMS yuborishni boshlaydi.
@@ -79,9 +81,11 @@ class SmsViewModel(application: Application) : AndroidViewModel(application) {
     fun startSending(
         contacts: List<SmsContact>,
         minDelayMs: Long = 4_000L,
-        maxDelayMs: Long = 6_000L
+        maxDelayMs: Long = 6_000L,
+        simSubscriptionId: Int? = null
     ) {
         sendingJob?.cancel()
+        userStoppedSending = false
 
         // Log ro'yxatini tayyorlaymiz
         currentEntries.clear()
@@ -120,7 +124,7 @@ class SmsViewModel(application: Application) : AndroidViewModel(application) {
                     updateEntryStatus(contact.index, SmsStatus.FAILED, "Noto'g'ri raqam formati")
                     Log.w(TAG, "Noto'g'ri raqam: ${contact.phoneNumber}")
                 } else {
-                    val success = sendSms(getApplication(), contact.phoneNumber, contact.message)
+                    val success = sendSms(getApplication(), contact.phoneNumber, contact.message, simSubscriptionId)
                     if (success) {
                         sentCount++
                         updateEntryStatus(contact.index, SmsStatus.SENT)
@@ -160,8 +164,9 @@ class SmsViewModel(application: Application) : AndroidViewModel(application) {
 
             // Yakuniy holat
             val finalSent = sentCount; val finalFailed = failedCount
+            val wasStoppedByUser = userStoppedSending
             withContext(Dispatchers.Main) {
-                val msg = if (isActive)
+                val msg = if (!wasStoppedByUser)
                     "✅ Tugadi! Muvaffaqiyatli: $finalSent, Xato: $finalFailed"
                 else
                     "⏹ To'xtatildi. Muvaffaqiyatli: $finalSent, Xato: $finalFailed"
@@ -170,13 +175,15 @@ class SmsViewModel(application: Application) : AndroidViewModel(application) {
                     sent = finalSent,
                     failed = finalFailed,
                     total = contacts.size,
-                    currentMessage = msg
+                    currentMessage = msg,
+                    stoppedByUser = wasStoppedByUser
                 )
             }
         }
     }
 
     fun stopSending() {
+        userStoppedSending = true
         sendingJob?.cancel()
     }
 
@@ -192,21 +199,26 @@ class SmsViewModel(application: Application) : AndroidViewModel(application) {
 
     // ─── Yordamchi funksiyalar ─────────────────────────────────────────────────
 
-    private fun sendSms(context: Context, phoneNumber: String, message: String): Boolean {
-        return try {
-            @Suppress("DEPRECATION")
-            val smsManager: SmsManager =
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                    context.getSystemService(SmsManager::class.java)
-                } else {
-                    SmsManager.getDefault()
-                }
+    @Suppress("DEPRECATION")
+    private fun getSmsManager(context: Context, subscriptionId: Int?): SmsManager {
+        return when {
+            subscriptionId != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP_MR1 ->
+                SmsManager.getSmsManagerForSubscriptionId(subscriptionId)
+            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S ->
+                context.getSystemService(SmsManager::class.java)
+            else ->
+                SmsManager.getDefault()
+        }
+    }
 
+    private fun sendSms(context: Context, phoneNumber: String, message: String, subscriptionId: Int? = null): Boolean {
+        return try {
+            val smsManager = getSmsManager(context, subscriptionId)
             val parts = smsManager.divideMessage(message)
             if (parts.size == 1) {
                 smsManager.sendTextMessage(phoneNumber, null, message, null, null)
             } else {
-                Log.d(TAG, "Uzun xabar: ${parts.size} qism — ${contact(phoneNumber)}")
+                Log.d(TAG, "Uzun xabar: ${parts.size} qism — $phoneNumber")
                 smsManager.sendMultipartTextMessage(phoneNumber, null, parts, null, null)
             }
             true
@@ -229,7 +241,4 @@ class SmsViewModel(application: Application) : AndroidViewModel(application) {
         if (min >= max) return min
         return min + (Math.random() * (max - min + 1)).toLong()
     }
-
-    // Faqat log uchun qisqa yordamchi
-    private fun contact(phone: String) = phone
 }
