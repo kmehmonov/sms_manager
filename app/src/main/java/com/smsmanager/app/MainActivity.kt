@@ -14,6 +14,8 @@ import android.os.Environment
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.view.View
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -25,6 +27,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.smsmanager.app.databinding.ActivityMainBinding
+import com.smsmanager.app.databinding.DialogColumnMappingBinding
 import com.smsmanager.app.databinding.DialogCsvPreviewBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -230,26 +233,136 @@ class MainActivity : AppCompatActivity() {
 
     private fun onFileSelected(uri: Uri) {
         selectedUri = uri
-        try {
-            val fileName  = getFileName(uri)
-            val skipHeader = binding.checkSkipHeader.isChecked
-            contacts = CsvParser.parse(this, uri, skipHeader)
-
-            if (contacts.isEmpty()) {
-                showToast(getString(R.string.error_empty_file))
+        lifecycleScope.launch {
+            try {
+                val rawRows = withContext(Dispatchers.IO) {
+                    CsvParser.readRawRows(this@MainActivity, uri, maxRows = 5)
+                }
+                if (rawRows.isEmpty()) {
+                    showToast(getString(R.string.error_empty_file))
+                    showNoFileState()
+                    return@launch
+                }
+                showColumnMappingDialog(uri, rawRows)
+            } catch (e: Exception) {
+                showToast("Fayl o'qishda xato: ${e.message}")
                 showNoFileState()
-                binding.btnStart.isEnabled = false
-            } else {
-                binding.tvFileName.text     = fileName
-                binding.tvContactCount.text = "${contacts.size} ta raqam topildi"
-                binding.layoutFileInfo.visibility = View.VISIBLE
-                binding.layoutNoFile.visibility   = View.GONE
-                binding.btnStart.isEnabled = true
-                showToast("${contacts.size} ta kontakt yuklandi ✓")
             }
-        } catch (e: Exception) {
-            showToast("Fayl o'qishda xato: ${e.message}")
-            showNoFileState()
+        }
+    }
+
+    /**
+     * CSV ustunlarini tanlash uchun mapping dialogi.
+     * rawRows — CSV ning birinchi bir nechta qatorlari (xom holda).
+     */
+    private fun showColumnMappingDialog(uri: Uri, rawRows: List<List<String>>) {
+        val skipHeader = binding.checkSkipHeader.isChecked
+        val columnCount = rawRows.maxOf { it.size }
+
+        // Ustun nomlarini quramiz
+        val headerRow = if (skipHeader && rawRows.isNotEmpty()) rawRows[0] else null
+        val columnLabels = (0 until columnCount).map { i ->
+            val name = headerRow?.getOrNull(i)?.trim()?.takeIf { it.isNotEmpty() }
+            if (name != null) "Ustun ${i + 1}: $name"
+            else {
+                val sample = rawRows[0].getOrNull(i)?.trim()?.take(15)?.takeIf { it.isNotEmpty() }
+                if (sample != null) "Ustun ${i + 1} ($sample…)" else "Ustun ${i + 1}"
+            }
+        }
+
+        // Preview matnini quramiz — birinchi 4 qator
+        val previewText = buildString {
+            val previewRows = rawRows.take(4)
+            previewRows.forEachIndexed { rowIdx, row ->
+                if (skipHeader && rowIdx == 0) append("[Sarlavha] ")
+                row.forEachIndexed { colIdx, cell ->
+                    append("[${colIdx + 1}] ")
+                    append(cell.take(18))
+                    if (colIdx < row.size - 1) append("  ")
+                }
+                appendLine()
+            }
+        }.trimEnd()
+
+        val dialogBinding = DialogColumnMappingBinding.inflate(layoutInflater)
+        dialogBinding.tvMappingPreview.text = previewText
+
+        // Dropdown adapter
+        val dropdownAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, columnLabels)
+        val spinnerPhone   = dialogBinding.spinnerPhoneColumn
+        val spinnerMessage = dialogBinding.spinnerMessageColumn
+
+        spinnerPhone.setAdapter(dropdownAdapter)
+        spinnerMessage.setAdapter(dropdownAdapter)
+
+        // Standart tanlov: 0 — telefon, 1 — xabar (agar 2+ ustun bo'lsa)
+        var phoneColIndex   = 0
+        var messageColIndex = if (columnCount > 1) 1 else 0
+
+        spinnerPhone.setText(columnLabels.getOrNull(phoneColIndex) ?: "", false)
+        spinnerMessage.setText(columnLabels.getOrNull(messageColIndex) ?: "", false)
+
+        spinnerPhone.setOnItemClickListener { _, _, position, _ ->
+            phoneColIndex = position
+            dialogBinding.tilPhoneColumn.error = null
+        }
+        spinnerMessage.setOnItemClickListener { _, _, position, _ ->
+            messageColIndex = position
+            dialogBinding.tilPhoneColumn.error = null
+        }
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("Ustun moslash (Mapping)")
+            .setView(dialogBinding.root)
+            .setPositiveButton("Tasdiqlash", null)
+            .setNegativeButton("Bekor", null)
+            .create()
+
+        dialog.show()
+
+        // Positive tugma — validatsiya bilan
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            if (phoneColIndex == messageColIndex) {
+                dialogBinding.tilPhoneColumn.error = "Telefon va xabar ustunlari farqli bo'lishi kerak"
+                return@setOnClickListener
+            }
+            dialogBinding.tilPhoneColumn.error = null
+            dialog.dismiss()
+            applyMappingAndLoad(uri, skipHeader, phoneColIndex, messageColIndex)
+        }
+    }
+
+    /**
+     * Mapping tasdiqlangandan so'ng CSV ni parse qilib kontaktlarni yuklaydi.
+     */
+    private fun applyMappingAndLoad(
+        uri: Uri,
+        skipHeader: Boolean,
+        phoneColIndex: Int,
+        messageColIndex: Int
+    ) {
+        lifecycleScope.launch {
+            try {
+                val loaded = withContext(Dispatchers.IO) {
+                    CsvParser.parseWithMapping(this@MainActivity, uri, skipHeader, phoneColIndex, messageColIndex)
+                }
+                val fileName = getFileName(uri)
+                if (loaded.isEmpty()) {
+                    showToast(getString(R.string.error_empty_file))
+                    showNoFileState()
+                } else {
+                    contacts = loaded
+                    binding.tvFileName.text     = fileName
+                    binding.tvContactCount.text = "${contacts.size} ta raqam topildi"
+                    binding.layoutFileInfo.visibility = View.VISIBLE
+                    binding.layoutNoFile.visibility   = View.GONE
+                    binding.btnStart.isEnabled = true
+                    showToast("${contacts.size} ta kontakt yuklandi ✓")
+                }
+            } catch (e: Exception) {
+                showToast("Fayl o'qishda xato: ${e.message}")
+                showNoFileState()
+            }
         }
     }
 

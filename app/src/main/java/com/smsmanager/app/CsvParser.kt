@@ -25,20 +25,54 @@ object CsvParser {
     private const val TAG = "CsvParser"
 
     /**
-     * URI orqali CSV faylni o'qib, SmsContact ro'yxatini qaytaradi.
+     * URI orqali CSV faylning birinchi bir nechta qatorini xom holda o'qiydi.
+     * Mapping dialogida preview va ustun nomlarini ko'rsatish uchun ishlatiladi.
      *
-     * @param context Android konteksti (ContentResolver uchun)
-     * @param uri     File picker orqali olingan fayl URI si
-     * @param skipHeader Birinchi qatorni (sarlavhani) o'tkazib yuborish
+     * @param context  Android konteksti
+     * @param uri      Fayl URI si
+     * @param maxRows  O'qiladigan maksimal qator soni (default: 5)
+     * @return Har bir qator — ustun qiymatlar ro'yxati
+     */
+    fun readRawRows(context: Context, uri: Uri, maxRows: Int = 5): List<List<String>> {
+        val rows = mutableListOf<List<String>>()
+        try {
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                val reader = inputStream.bufferedReader(Charsets.UTF_8)
+                for (line in reader.lineSequence()) {
+                    if (line.isBlank()) continue
+                    rows.add(parseCsvLine(line))
+                    if (rows.size >= maxRows) break
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "readRawRows xato: ${e.message}", e)
+        }
+        return rows
+    }
+
+    /**
+     * URI orqali CSV faylni o'qib, foydalanuvchi tanlagan ustun mapping asosida
+     * SmsContact ro'yxatini qaytaradi.
+     *
+     * @param context         Android konteksti
+     * @param uri             Fayl URI si
+     * @param skipHeader      Birinchi qatorni (sarlavhani) o'tkazib yuborish
+     * @param phoneColIndex   Telefon raqami joylashgan ustun indeksi (0 dan boshlanadi)
+     * @param messageColIndex Xabar joylashgan ustun indeksi (0 dan boshlanadi)
      * @return O'qilgan kontaktlar ro'yxati
      */
-    fun parse(context: Context, uri: Uri, skipHeader: Boolean): List<SmsContact> {
+    fun parseWithMapping(
+        context: Context,
+        uri: Uri,
+        skipHeader: Boolean,
+        phoneColIndex: Int,
+        messageColIndex: Int
+    ): List<SmsContact> {
         val contacts = mutableListOf<SmsContact>()
+        val requiredCols = maxOf(phoneColIndex, messageColIndex) + 1
 
         try {
-            // ContentResolver orqali faylni ochamiz — bu usul file picker bilan ishlaydi
             context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                // UTF-8 kodlash bilan o'qiymiz — o'zbek va rus harflari to'g'ri ko'rinadi
                 val reader = inputStream.bufferedReader(Charsets.UTF_8)
                 var lineNumber = 0
                 var contactIndex = 1
@@ -46,27 +80,22 @@ object CsvParser {
                 reader.forEachLine { line ->
                     lineNumber++
 
-                    // Birinchi qatorni o'tkazib yuborish (sarlavha)
                     if (skipHeader && lineNumber == 1) {
                         Log.d(TAG, "Sarlavha qatori o'tkazildi: $line")
                         return@forEachLine
                     }
 
-                    // Bo'sh qatorlarni o'tkazib yuborish
                     if (line.isBlank()) return@forEachLine
 
-                    // CSV qatorini tahlil qilamiz
                     val parsed = parseCsvLine(line)
 
-                    // Kamida 2 ta ustun bo'lishi shart: raqam va xabar
-                    if (parsed.size < 2) {
-                        Log.w(TAG, "$lineNumber-qator noto'g'ri format: $line")
+                    if (parsed.size < requiredCols) {
+                        Log.w(TAG, "$lineNumber-qator ustun soni yetarli emas (${parsed.size} < $requiredCols): $line")
                         return@forEachLine
                     }
 
-                    val phone = parsed[0].trim()
-                    // 2-dan keyingi barcha ustunlarni xabar deb qabul qilamiz (vergul bo'lsa)
-                    val message = parsed.drop(1).joinToString(",").trim()
+                    val phone   = parsed[phoneColIndex].trim()
+                    val message = parsed[messageColIndex].trim()
 
                     if (phone.isNotEmpty() && message.isNotEmpty()) {
                         contacts.add(
@@ -80,13 +109,20 @@ object CsvParser {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "CSV o'qishda xato: ${e.message}", e)
+            Log.e(TAG, "CSV mapping parse xato: ${e.message}", e)
             throw e
         }
 
-        Log.d(TAG, "Jami o'qildi: ${contacts.size} ta kontakt")
+        Log.d(TAG, "Jami o'qildi: ${contacts.size} ta kontakt (phone=$phoneColIndex, msg=$messageColIndex)")
         return contacts
     }
+
+    /**
+     * @deprecated parseWithMapping() ishlatilsin.
+     * Birinchi ustun telefon, ikkinchisi xabar deb qabul qiladi.
+     */
+    fun parse(context: Context, uri: Uri, skipHeader: Boolean): List<SmsContact> =
+        parseWithMapping(context, uri, skipHeader, phoneColIndex = 0, messageColIndex = 1)
 
     /**
      * CSV qatorini tahlil qiladi — qo'shtirnoq ichidagi vergullarni to'g'ri qayta ishlaydi.

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="20dp"
+    android:paddingEnd="20dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="4dp">
+
+    <!-- CSV namunasi sarlavhasi -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="CSV namunasi (birinchi qatorlar):"
+        android:textSize="12sp"
+        android:textColor="#6B7280"
+        android:layout_marginBottom="6dp" />
+
+    <!-- Raw preview — gorizontal scroll bilan -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:id="@+id/tvMappingPreview"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="10dp"
+            android:fontFamily="monospace"
+            android:textSize="11sp"
+            android:textColor="#1F2937"
+            android:background="#F3F4F6"
+            android:lineSpacingExtra="4dp" />
+
+    </HorizontalScrollView>
+
+    <!-- Ajratuvchi -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#E5E7EB"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Telefon raqam ustuni dropdown -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilPhoneColumn"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Telefon raqam ustuni"
+        android:layout_marginBottom="12dp">
+
+        <AutoCompleteTextView
+            android:id="@+id/spinnerPhoneColumn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="none"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Xabar ustuni dropdown -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilMessageColumn"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Xabar (message) ustuni"
+        android:layout_marginBottom="4dp">
+
+        <AutoCompleteTextView
+            android:id="@+id/spinnerMessageColumn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="none"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+</LinearLayout>
