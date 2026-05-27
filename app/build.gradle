@@ -18,9 +18,28 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        release {
+            // CI da -P parametrlari orqali uzatiladi
+            storeFile = project.hasProperty('android.injected.signing.store.file')
+                ? file(project.property('android.injected.signing.store.file'))
+                : file("../signing/sms_manager.keystore")
+            storePassword = project.hasProperty('android.injected.signing.store.password')
+                ? project.property('android.injected.signing.store.password')
+                : "smsmanager123"
+            keyAlias = project.hasProperty('android.injected.signing.key.alias')
+                ? project.property('android.injected.signing.key.alias')
+                : "smsmanager"
+            keyPassword = project.hasProperty('android.injected.signing.key.password')
+                ? project.property('android.injected.signing.key.password')
+                : "smsmanager123"
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
+            signingConfig signingConfigs.release
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

@@ -43,21 +43,26 @@ jobs:
       - name: gradlew huquqlari
         run: chmod +x gradlew
 
-      - name: Debug APK build
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Release APK build (doimiy keystore bilan)
+        run: |
+          ./gradlew assembleRelease --no-daemon \
+            -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/signing/sms_manager.keystore \
+            -Pandroid.injected.signing.store.password=smsmanager123 \
+            -Pandroid.injected.signing.key.alias=smsmanager \
+            -Pandroid.injected.signing.key.password=smsmanager123
 
       # APK nomini o'zgarmas qilamiz
       - name: APK nomini sozlash
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/sms-manager.apk
-          ls -lh app/build/outputs/apk/debug/
+          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/sms-manager.apk
+          ls -lh app/build/outputs/apk/release/
 
       # GitHub Actions artifact (qo'shimcha)
       - name: APK ni artifact sifatida saqlash
         uses: actions/upload-artifact@v4
         with:
-          name: sms-manager-debug-apk
-          path: app/build/outputs/apk/debug/sms-manager.apk
+          name: sms-manager-release-apk
+          path: app/build/outputs/apk/release/sms-manager.apk
           retention-days: 30
 
       # GitHub Release yaratish (faqat main/master branch uchun)
@@ -81,7 +86,7 @@ jobs:
           gh release create latest \
             --title "SMS Manager (Build ${BUILD})" \
             --notes "${BODY}" \
-            "app/build/outputs/apk/debug/sms-manager.apk#sms-manager.apk"
+            "app/build/outputs/apk/release/sms-manager.apk#sms-manager.apk"
 
           echo "✅ Release yaratildi: Build ${BUILD}"
           echo "🔗 https://github.com/${{ github.repository }}/releases/latest"
@@ -89,4 +94,4 @@ jobs:
       - name: Natija
         run: |
           echo "✅ Build ${{ github.run_number }} muvaffaqiyatli!"
-          ls -lh app/build/outputs/apk/debug/sms-manager.apk
+          ls -lh app/build/outputs/apk/release/sms-manager.apk
