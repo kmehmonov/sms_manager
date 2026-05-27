@@ -44,6 +44,47 @@
                 android:textSize="13sp" />
 
         </LinearLayout>
+
+        <!-- Yangilanish banneri — yangi versiya topilganda ko'rinadi -->
+        <LinearLayout
+            android:id="@+id/layoutUpdateBanner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="#1A3A6E"
+            android:paddingStart="20dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <TextView
+                android:id="@+id/tvUpdateTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="🆕 Yangi versiya mavjud!"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnUpdate"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="Yuklab olish"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="@color/primary"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:backgroundTint="#FFFFFF"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp" />
+
+        </LinearLayout>
+
     </com.google.android.material.appbar.AppBarLayout>
 
     <!-- ══════════════════════════════════════════════

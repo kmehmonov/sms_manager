@@ -1,10 +1,18 @@
 package com.smsmanager.app
 
 import android.Manifest
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.provider.OpenableColumns
+import android.provider.Settings
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,10 +20,17 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.smsmanager.app.databinding.ActivityMainBinding
 import com.smsmanager.app.databinding.DialogCsvPreviewBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * Asosiy Activity.
@@ -26,6 +41,7 @@ import com.smsmanager.app.databinding.DialogCsvPreviewBinding
  * - Delay sozlamalarini o'qish
  * - ViewModel bilan bog'liq UI yangilashlari
  * - Log elementlariga bosish — tafsilot dialog
+ * - In-app yangilanish: GitHub Release tekshirish → yuklab olish → o'rnatish
  */
 class MainActivity : AppCompatActivity() {
 
@@ -35,6 +51,10 @@ class MainActivity : AppCompatActivity() {
 
     private var contacts: List<SmsContact> = emptyList()
     private var selectedUri: Uri? = null
+
+    // Yangilanish yuklab olish uchun DownloadManager ID
+    private var downloadId: Long = -1L
+    private var pendingDownloadUrl: String? = null
 
     // ─── Fayl picker launcher ──────────────────────────────────────────────────
     private val filePickerLauncher = registerForActivityResult(
@@ -51,6 +71,28 @@ class MainActivity : AppCompatActivity() {
         else showPermissionDeniedDialog()
     }
 
+    // ─── APK o'rnatish ruxsati launcher (Android 8.0+) ────────────────────────
+    private val requestInstallPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        // Sozlamalardan qaytgach — agar ruxsat berilgan bo'lsa, yuklab olishni boshlaymiz
+        val url = pendingDownloadUrl
+        if (url != null && canInstallPackages()) {
+            pendingDownloadUrl = null
+            startApkDownload(url)
+        }
+    }
+
+    // ─── APK yuklab olish tugashi uchun BroadcastReceiver ─────────────────────
+    private val downloadReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
+            if (id == downloadId) {
+                onDownloadCompleted(id)
+            }
+        }
+    }
+
     // ─── Lifecycle ─────────────────────────────────────────────────────────────
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,13 +103,32 @@ class MainActivity : AppCompatActivity() {
         setupRecyclerView()
         setupClickListeners()
         observeViewModel()
+
+        // Ilova ochilganda — yangilanishni tekshiramiz
+        checkForUpdates()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // DownloadManager broadcast'ini ro'yxatga olamiz
+        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(downloadReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(downloadReceiver, filter)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        try { unregisterReceiver(downloadReceiver) } catch (_: Exception) {}
     }
 
     // ─── UI sozlash ────────────────────────────────────────────────────────────
 
     private fun setupRecyclerView() {
         logAdapter = LogAdapter { entry ->
-            // Log elementiga bosish — to'liq tafsilot dialogi
             showLogDetailDialog(entry)
         }
         binding.recyclerLog.apply {
@@ -100,6 +161,12 @@ class MainActivity : AppCompatActivity() {
 
         // Log tozalash
         binding.btnClearLog.setOnClickListener { viewModel.clearLog() }
+
+        // Yangilash tugmasi — banner ko'rinsa ishlatiladi
+        binding.btnUpdate.setOnClickListener {
+            val url = binding.btnUpdate.tag as? String
+            if (url != null) downloadAndInstall(url)
+        }
     }
 
     private fun observeViewModel() {
@@ -129,35 +196,34 @@ class MainActivity : AppCompatActivity() {
     // ─── Progress UI yangilash ─────────────────────────────────────────────────
 
     private fun updateProgressUI(state: SendingState) {
-        // Statistika kartalari
-        binding.tvStatSent.text = state.sent.toString()
+        binding.tvStatSent.text   = state.sent.toString()
         binding.tvStatFailed.text = state.failed.toString()
-        binding.tvStatTotal.text = state.total.toString()
+        binding.tvStatTotal.text  = state.total.toString()
 
         if (state.total > 0) {
-            val done = state.sent + state.failed
+            val done    = state.sent + state.failed
             val percent = (done * 100 / state.total)
 
-            binding.tvProgress.text = "$done / ${state.total} yuborildi"
-            binding.tvProgressPercent.text = "$percent%"
-            binding.progressBar.max = state.total
-            binding.progressBar.progress = done
-            binding.tvCurrentStatus.text = state.currentMessage
+            binding.tvProgress.text        = "$done / ${state.total} yuborildi"
+            binding.tvProgressPercent.text  = "$percent%"
+            binding.progressBar.max        = state.total
+            binding.progressBar.progress   = done
+            binding.tvCurrentStatus.text   = state.currentMessage
         } else {
-            binding.tvProgress.text = getString(R.string.progress_idle)
-            binding.tvProgressPercent.text = "0%"
-            binding.progressBar.progress = 0
-            binding.tvCurrentStatus.text = ""
+            binding.tvProgress.text        = getString(R.string.progress_idle)
+            binding.tvProgressPercent.text  = "0%"
+            binding.progressBar.progress   = 0
+            binding.tvCurrentStatus.text   = ""
         }
     }
 
     private fun updateButtonStates(isRunning: Boolean) {
-        binding.btnStart.isEnabled = !isRunning && contacts.isNotEmpty()
-        binding.btnStop.isEnabled = isRunning
-        binding.btnSelectFile.isEnabled = !isRunning
+        binding.btnStart.isEnabled       = !isRunning && contacts.isNotEmpty()
+        binding.btnStop.isEnabled        = isRunning
+        binding.btnSelectFile.isEnabled  = !isRunning
         binding.checkSkipHeader.isEnabled = !isRunning
-        binding.etMinDelay.isEnabled = !isRunning
-        binding.etMaxDelay.isEnabled = !isRunning
+        binding.etMinDelay.isEnabled     = !isRunning
+        binding.etMaxDelay.isEnabled     = !isRunning
     }
 
     // ─── Fayl tanlash ──────────────────────────────────────────────────────────
@@ -165,7 +231,7 @@ class MainActivity : AppCompatActivity() {
     private fun onFileSelected(uri: Uri) {
         selectedUri = uri
         try {
-            val fileName = getFileName(uri)
+            val fileName  = getFileName(uri)
             val skipHeader = binding.checkSkipHeader.isChecked
             contacts = CsvParser.parse(this, uri, skipHeader)
 
@@ -174,11 +240,10 @@ class MainActivity : AppCompatActivity() {
                 showNoFileState()
                 binding.btnStart.isEnabled = false
             } else {
-                // Fayl info ko'rsatamiz
-                binding.tvFileName.text = fileName
+                binding.tvFileName.text     = fileName
                 binding.tvContactCount.text = "${contacts.size} ta raqam topildi"
                 binding.layoutFileInfo.visibility = View.VISIBLE
-                binding.layoutNoFile.visibility = View.GONE
+                binding.layoutNoFile.visibility   = View.GONE
                 binding.btnStart.isEnabled = true
                 showToast("${contacts.size} ta kontakt yuklandi ✓")
             }
@@ -190,7 +255,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showNoFileState() {
         binding.layoutFileInfo.visibility = View.GONE
-        binding.layoutNoFile.visibility = View.VISIBLE
+        binding.layoutNoFile.visibility   = View.VISIBLE
         contacts = emptyList()
         binding.btnStart.isEnabled = false
     }
@@ -207,10 +272,6 @@ class MainActivity : AppCompatActivity() {
 
     // ─── CSV Preview dialogi ───────────────────────────────────────────────────
 
-    /**
-     * CSV tarkibini dialog oynada ko'rsatadi.
-     * RecyclerView bilan skrollable ro'yxat.
-     */
     private fun showCsvPreviewDialog() {
         if (contacts.isEmpty()) {
             showToast("Ko'rsatadigan ma'lumot yo'q")
@@ -276,7 +337,6 @@ class MainActivity : AppCompatActivity() {
     private fun startSendingIfReady() {
         if (contacts.isEmpty()) { showToast(getString(R.string.error_no_file)); return }
 
-        // Delay qiymatlarini o'qiymiz
         val minSec = binding.etMinDelay.text.toString().toLongOrNull() ?: 4L
         val maxSec = binding.etMaxDelay.text.toString().toLongOrNull() ?: 6L
 
@@ -289,7 +349,6 @@ class MainActivity : AppCompatActivity() {
         binding.tilMinDelay.error = null
         binding.tilMaxDelay.error = null
 
-        // Millisekundga o'tkazamiz
         val minMs = minSec * 1000L
         val maxMs = maxSec * 1000L
 
@@ -309,10 +368,6 @@ class MainActivity : AppCompatActivity() {
 
     // ─── Log tafsilot dialogi ──────────────────────────────────────────────────
 
-    /**
-     * Log elementiga bosilganda to'liq tafsilotni ko'rsatadi.
-     * Uzun xabar bu yerda to'liq skrollable ko'rinishda chiqadi.
-     */
     private fun showLogDetailDialog(entry: SmsLogEntry) {
         val statusText = when (entry.status) {
             SmsStatus.PENDING -> "⏳ Navbatda"
@@ -335,6 +390,149 @@ class MainActivity : AppCompatActivity() {
             .setMessage(message)
             .setPositiveButton(R.string.btn_close, null)
             .show()
+    }
+
+    // ─── Yangilanish logikasi ──────────────────────────────────────────────────
+
+    /**
+     * Ilova ochilganda GitHub'dan yangi versiyani tekshiradi.
+     * Fon rejimida ishlaydi — UI'ni blokirovka qilmaydi.
+     */
+    private fun checkForUpdates() {
+        lifecycleScope.launch {
+            val currentCode = getInstalledVersionCode()
+            val updateInfo  = UpdateChecker.checkForUpdate(currentCode)
+            if (updateInfo != null) {
+                showUpdateBanner(updateInfo)
+            }
+        }
+    }
+
+    /** O'rnatilgan APK ning versionCode raqamini qaytaradi. */
+    @Suppress("DEPRECATION")
+    private fun getInstalledVersionCode(): Int {
+        return try {
+            packageManager.getPackageInfo(packageName, 0).versionCode
+        } catch (e: Exception) { 0 }
+    }
+
+    /** Yangi versiya topilganda yuqori bannerda ko'rsatadi. */
+    private fun showUpdateBanner(updateInfo: UpdateInfo) {
+        binding.tvUpdateTitle.text = "🆕 ${updateInfo.releaseTitle} — yangilash mavjud"
+        binding.btnUpdate.tag      = updateInfo.downloadUrl   // URLni saqlaymiz
+        binding.layoutUpdateBanner.visibility = View.VISIBLE
+    }
+
+    /**
+     * Yuklab olishdan oldin REQUEST_INSTALL_PACKAGES ruxsatini tekshiradi.
+     * Android 8.0 (Oreo)+ da talab qilinadi.
+     */
+    private fun downloadAndInstall(url: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !canInstallPackages()) {
+            pendingDownloadUrl = url
+            MaterialAlertDialogBuilder(this)
+                .setTitle("O'rnatish ruxsati")
+                .setMessage("Yangilanishni o'rnatish uchun noma'lum manbalardan o'rnatishga ruxsat bering.\n\nSozlamalar → Maxsus dastur kirishi → Noma'lum manbalar")
+                .setPositiveButton("Sozlamalarga o'tish") { _, _ ->
+                    requestInstallPermissionLauncher.launch(
+                        Intent(
+                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:$packageName")
+                        )
+                    )
+                }
+                .setNegativeButton("Bekor", null)
+                .show()
+            return
+        }
+        startApkDownload(url)
+    }
+
+    private fun canInstallPackages(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            packageManager.canRequestPackageInstalls()
+        } else true
+    }
+
+    /**
+     * DownloadManager orqali APK yuklab olishni boshlaydi.
+     */
+    private fun startApkDownload(url: String) {
+        // Eski faylni tozalaymiz
+        val outputFile = File(getExternalFilesDir(null), "sms-manager-update.apk")
+        if (outputFile.exists()) outputFile.delete()
+
+        val request = DownloadManager.Request(Uri.parse(url)).apply {
+            setTitle("SMS Manager yangilanishi")
+            setDescription("Yangi versiya yuklab olinmoqda…")
+            setNotificationVisibility(
+                DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+            )
+            setDestinationUri(Uri.fromFile(outputFile))
+            setAllowedOverMetered(true)
+            setAllowedOverRoaming(true)
+        }
+
+        val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+        downloadId = dm.enqueue(request)
+
+        // Tugma holatini yangilaymiz
+        binding.btnUpdate.isEnabled = false
+        binding.btnUpdate.text      = "Yuklanmoqda…"
+        showToast("Yangilanish yuklab olinmoqda…")
+    }
+
+    /**
+     * DownloadManager yuklab olishni tugatganda chaqiriladi.
+     */
+    private fun onDownloadCompleted(id: Long) {
+        val dm    = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+        val query = DownloadManager.Query().setFilterById(id)
+        val cursor = dm.query(query)
+
+        if (cursor.moveToFirst()) {
+            val statusCol = cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)
+            val status    = cursor.getInt(statusCol)
+
+            when (status) {
+                DownloadManager.STATUS_SUCCESSFUL -> {
+                    val outputFile = File(getExternalFilesDir(null), "sms-manager-update.apk")
+                    if (outputFile.exists()) {
+                        installApk(outputFile)
+                    } else {
+                        showToast("Fayl topilmadi")
+                        resetUpdateButton()
+                    }
+                }
+                DownloadManager.STATUS_FAILED -> {
+                    showToast("Yuklab olishda xato yuz berdi")
+                    resetUpdateButton()
+                }
+            }
+        }
+        cursor.close()
+    }
+
+    /**
+     * FileProvider orqali xavfsiz URI yaratib, APK o'rnatishni boshlaydi.
+     */
+    private fun installApk(file: File) {
+        val uri = FileProvider.getUriForFile(
+            this,
+            "$packageName.fileprovider",
+            file
+        )
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(intent)
+    }
+
+    private fun resetUpdateButton() {
+        binding.btnUpdate.isEnabled = true
+        binding.btnUpdate.text      = "Qayta urinish"
     }
 
     // ─── Ruxsat rad etilganda ─────────────────────────────────────────────────

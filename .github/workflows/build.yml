@@ -1,4 +1,4 @@
-name: Android CI — APK Build
+name: Android CI — APK Build & Release
 
 on:
   push:
@@ -8,8 +8,10 @@ on:
 
 jobs:
   build:
-    name: Build Debug APK
+    name: Build & Release APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # GitHub Release yaratish uchun kerak
 
     steps:
       - name: Kodni yuklab olish
@@ -21,6 +23,13 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      # versionCode = GitHub run_number (har build uchun unikal, o'sib boruvchi)
+      - name: versionCode ni yangilash
+        run: |
+          sed -i "s/versionCode = [0-9]*/versionCode = ${{ github.run_number }}/" app/build.gradle
+          echo "✓ versionCode = ${{ github.run_number }}"
+          grep "versionCode" app/build.gradle
+
       - name: Gradle cache
         uses: actions/cache@v4
         with:
@@ -31,25 +40,54 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: gradlew ga ijro huquqi berish
+      - name: gradlew huquqlari
         run: chmod +x gradlew
 
       - name: Debug APK build
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: APK ni saqlash
+      # APK nomini o'zgarmas qilamiz
+      - name: APK nomini sozlash
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/sms-manager.apk
+          ls -lh app/build/outputs/apk/debug/
+
+      # GitHub Actions artifact (qo'shimcha)
+      - name: APK ni artifact sifatida saqlash
         uses: actions/upload-artifact@v4
         with:
           name: sms-manager-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/sms-manager.apk
           retention-days: 30
+
+      # GitHub Release yaratish (faqat main/master branch uchun)
+      - name: GitHub Release yaratish (latest)
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BUILD=${{ github.run_number }}
+
+          # Eski "latest" release va tag'ni o'chiramiz
+          gh release delete latest --yes 2>/dev/null || echo "Oldingi release yo'q"
+          sleep 2
+          git push origin :refs/tags/latest 2>/dev/null || echo "Oldingi tag yo'q"
+          sleep 1
+
+          # Yangi "latest" release yaratamiz
+          # Body'dagi versionCode app yangilanishini aniqlash uchun ishlatiladi
+          BODY="{\"versionCode\": ${BUILD}}"
+
+          gh release create latest \
+            --title "SMS Manager (Build ${BUILD})" \
+            --notes "${BODY}" \
+            --prerelease \
+            "app/build/outputs/apk/debug/sms-manager.apk#sms-manager.apk"
+
+          echo "✅ Release yaratildi: Build ${BUILD}"
+          echo "🔗 https://github.com/${{ github.repository }}/releases/latest"
 
       - name: Natija
         run: |
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-          if [ -f "$APK" ]; then
-            echo "✅ APK muvaffaqiyatli yaratildi! $(du -sh $APK)"
-          else
-            echo "❌ APK yaratilmadi"
-            exit 1
-          fi
+          echo "✅ Build ${{ github.run_number }} muvaffaqiyatli!"
+          ls -lh app/build/outputs/apk/debug/sms-manager.apk

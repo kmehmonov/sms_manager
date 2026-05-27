@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    FileProvider path konfiguratsiyasi.
+    Yuklab olingan APK faylini o'rnatish uchun URI beradi.
+    getExternalFilesDir(null) → /Android/data/com.smsmanager.app/files/
+-->
+<paths>
+    <external-files-path
+        name="apk_downloads"
+        path="." />
+</paths>
